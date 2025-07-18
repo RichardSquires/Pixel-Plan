@@ -551,47 +551,63 @@
       );
 
       // --- Main App Component ---
-      const App = () => {
-        const [page, setPage] = useState("tasks");
-        const [tasks, setTasks] = useState([]);
-        const [categories, setCategories] = useState([]);
-        const [customIcons, setCustomIcons] = useState([]);
-        const [attributions, setAttributions] = useState([]);
+      const [page, setPage] = useState("tasks");
+      const [tasks, setTasks] = useState(initialTasks);
+      const [categories, setCategories] = useState(defaultCategories);
+      const [customIcons, setCustomIcons] = useState([]);
+      const [attributions, setAttributions] = useState([]);
+      const [loading, setLoading] = useState(true); // <-- ADD THIS
 
-        const [showToast, setShowToast] = useState(false);
-        const [toastMessage, setToastMessage] = useState("");
-        const [editingTask, setEditingTask] = useState(null);
-        const [isAuthenticated, setIsAuthenticated] = useState(false);
-        const [passwordHash, setPasswordHash] = useState(null);
+      const [showToast, setShowToast] = useState(false);
+      const [toastMessage, setToastMessage] = useState("");
+      const [editingTask, setEditingTask] = useState(null);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [passwordHash, setPasswordHash] = useState(null);
 
-        // Simple hashing function (for demonstration only - NOT for production)
-        const simpleHash = (str) => {
-          let hash = 0;
-          for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = (hash << 5) - hash + char;
-            hash |= 0; // Convert to 32bit integer
-          }
-          return hash.toString();
-        };
+      // Simple hashing function (for demonstration only - NOT for production)
+      const simpleHash = (str) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = (hash << 5) - hash + char;
+          hash |= 0; // Convert to 32bit integer
+        }
+        return hash.toString();
+      };
 
-        // Load data from IndexedDB on initial render
-        useEffect(() => {
-            const loadAllData = async () => {
-                const [loadedTasks, loadedCategories, loadedIcons, loadedAttributions] = await Promise.all([
-                    loadData('tasks'),
-                    loadData('categories'),
-                    loadData('customIcons'),
-                    loadData('attributions')
-                ]);
+      // Load data from IndexedDB on initial render
+      useEffect(() => {
+          const loadAllData = async () => {
+              try {
+                  const [loadedTasks, loadedCategories, loadedIcons, loadedAttributions] = await Promise.all([
+                      loadData('tasks'),
+                      loadData('categories'),
+                      loadData('customIcons'),
+                      loadData('attributions')
+                  ]);
 
-                if (loadedTasks.length > 0) setTasks(loadedTasks); else setTasks(initialTasks);
-                if (loadedCategories.length > 0) setCategories(loadedCategories); else setCategories(defaultCategories);
-                setCustomIcons(loadedIcons);
-                setAttributions(loadedAttributions.map(a => a.text)); // Attributions are stored as objects
-            };
-            loadAllData();
-        }, []);
+                  if (loadedTasks.length > 0) setTasks(loadedTasks);
+                  if (loadedCategories.length > 0) setCategories(loadedCategories);
+                  if (loadedIcons.length > 0) setCustomIcons(loadedIcons);
+                  if (loadedAttributions.length > 0) setAttributions(loadedAttributions);
+              } catch (error) {
+                  console.error("Failed to load data from IndexedDB", error);
+              } finally {
+                  setLoading(false); // <-- ADD THIS
+              }
+          };
+          loadAllData();
+      }, []);
+
+      useEffect(() => {
+        const storedHash = localStorage.getItem("pixel-plan-password");
+        const sessionActive =
+          localStorage.getItem("pixel-plan-session") === "true";
+        setPasswordHash(storedHash);
+        if (storedHash && sessionActive) {
+          setIsAuthenticated(true);
+        }
+      }, []);
 
 
         useEffect(() => {
@@ -632,10 +648,10 @@
         useEffect(() => { saveData('categories', categories); }, [categories]);
         useEffect(() => { saveData('customIcons', customIcons); }, [customIcons]);
         useEffect(() => {
-            // Attributions are strings, but our DB expects objects with an 'id'.
-            const attributionObjects = attributions.map(attr => ({ id: attr, text: attr }));
-            saveData('attributions', attributionObjects);
-        }, [attributions]);
+        if(!loading) { // Only save after initial load
+            saveData('attributions', attributions);
+        }
+        }, [attributions, loading]);
 
         const triggerToast = (message) => {
           setToastMessage(message);
@@ -828,28 +844,32 @@
           }
         };
 
-        if (!isAuthenticated) {
-          if (!passwordHash) {
-            return <PasswordSetupPage onSetup={handlePasswordSetup} />;
-          } else {
-            return <LoginPage onLogin={handleLogin} />;
-          }
-        }
+       if (loading && !passwordHash) {
+        return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    }
 
-        return (
-          <div className="min-h-screen bg-white text-gray-800 font-pangolin">
-            <div className="container mx-auto max-w-lg p-4 pb-24">
-              <Header />
-              <main>{renderPage()}</main>
-            </div>
-            <BottomNav
-              currentPage={page}
-              setPage={setPage}
-              setEditingTask={setEditingTask}
-            />
-            <Toast message={toastMessage} isVisible={showToast} />
-          </div>
-        );
+    if (!isAuthenticated) {
+      if (!passwordHash) {
+        return <PasswordSetupPage onSetup={handlePasswordSetup} />;
+      } else {
+        return <LoginPage onLogin={handleLogin} />;
+      }
+    }
+
+    return (
+      <div className="min-h-screen bg-white text-gray-800 font-pangolin">
+        <div className="container mx-auto max-w-lg p-4 pb-24">
+          <Header />
+          <main>{renderPage()}</main>
+        </div>
+        <BottomNav
+          currentPage={page}
+          setPage={setPage}
+          setEditingTask={setEditingTask}
+        />
+        <Toast message={toastMessage} isVisible={showToast} />
+      </div>
+    );
       };
 
       // --- Auth Components ---
@@ -2557,56 +2577,67 @@
       };
 
       const SavedAttributionsPage = ({
-        setPage,
-        attributions,
-        setAttributions,
-      }) => {
-        const deleteAttribution = (indexToDelete) => {
-          setAttributions((prev) =>
-            prev.filter((_, index) => index !== indexToDelete),
-          );
-        };
+    setPage,
+    attributions,
+    setAttributions,
+  }) => {
+    const deleteAttribution = (idToDelete) => {
+      setAttributions((prev) =>
+        prev.filter((attr) => attr.id !== idToDelete),
+      );
+    };
 
-        return (
-          <div className="p-4 bg-white rounded-lg shadow-lg">
-            <div className="flex items-center mb-4">
-              <button
-                onClick={() => setPage("settings")}
-                className="p-2 rounded-full hover:bg-gray-100 mr-2"
+    return (
+      <div className="p-4 bg-white rounded-lg shadow-lg">
+        <div className="flex items-center mb-4">
+          <button
+            onClick={() => setPage("settings")}
+            className="p-2 rounded-full hover:bg-gray-100 mr-2"
+          >
+            <ChevronLeftIcon />
+          </button>
+          <h2 className="text-2xl font-bold text-gray-700">
+            Saved Attributions
+          </h2>
+        </div>
+        <div className="space-y-3">
+          {attributions.length > 0 ? (
+            attributions.map((attr) => (
+              <div
+                key={attr.id}
+                className="flex justify-between items-start p-3 bg-gray-50 rounded-lg"
               >
-                <ChevronLeftIcon />
-              </button>
-              <h2 className="text-2xl font-bold text-gray-700">
-                Saved Attributions
-              </h2>
-            </div>
-            <div className="space-y-3">
-              {attributions.length > 0 ? (
-                attributions.map((attr, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between items-start p-3 bg-gray-50 rounded-lg"
-                  >
-                    <p className="text-gray-700 whitespace-pre-wrap break-words mr-2">
-                      {attr}
-                    </p>
-                    <button
-                      onClick={() => deleteAttribution(index)}
-                      className="p-1 text-red-500 flex-shrink-0"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 italic">
-                  No attributions saved yet.
+                <p className="text-gray-700 whitespace-pre-wrap break-words mr-2">
+                  {attr.text}
                 </p>
-              )}
-            </div>
-          </div>
-        );
+                <button
+                  onClick={() => deleteAttribution(attr.id)}
+                  className="p-1 text-red-500 flex-shrink-0"
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500 italic">
+              No attributions saved yet.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Inside the SettingsPage component...
+  const handleSaveAttribution = () => {
+      if (!attributionText.trim()) return;
+      const newAttribution = {
+          id: generateId(),
+          text: attributionText.trim()
       };
+      setAttributions((prev) => [...prev, newAttribution]);
+      setAttributionText("");
+  };
 
       const SettingsPage = ({
         setPage,
