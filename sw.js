@@ -1,18 +1,15 @@
-// UPDATED: Changed cache name to v5 to trigger a service worker update.
-const CACHE_NAME = 'pixel-plan-v5';
-const FONT_CACHE_NAME = 'google-fonts-cache';
+// UPDATED: A new, more robust service worker implementation.
+const CACHE_NAME = 'pixel-plan-v6'; // Changed version to force update
+const FONT_CACHE_NAME = 'google-fonts-cache-v1';
 
-// UPDATED: Removed the Google Fonts URL. The service worker will cache it at runtime instead.
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/react@18/umd/react.development.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js'
+  // Note: CDN resources are now cached at runtime, not in the initial install.
+  // This makes the installation faster and more reliable.
 ];
 
 // Install event: caches the core app shell.
@@ -32,7 +29,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          // Delete caches that are not our current app shell or font cache.
+          // Delete any caches that are not our current app shell or font cache
           if (cacheName !== CACHE_NAME && cacheName !== FONT_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -48,8 +45,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // UPDATED: Added a specific, robust caching strategy for Google Fonts.
-  // This handles both the CSS and the font files (.woff2).
+  // Strategy 1: Stale-While-Revalidate for Google Fonts
+  // This serves fonts from the cache immediately for speed and fetches updates in the background.
   if (url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com') {
     event.respondWith(
       caches.open(FONT_CACHE_NAME).then(cache => {
@@ -58,45 +55,33 @@ self.addEventListener('fetch', event => {
             cache.put(event.request, networkResponse.clone());
             return networkResponse;
           });
-          // Return cached response immediately if available, and fetch an update in the background.
           return cachedResponse || fetchPromise;
         });
       })
     );
-    return; // End execution for font requests.
+    return;
   }
 
-  // Use the original cache-first strategy for all other requests.
+  // Strategy 2: Cache First for all other requests (including CDN scripts)
+  // This is the most reliable strategy for app resources.
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
+      .then(cachedResponse => {
+        // If the resource is in the cache, return it.
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Not in cache, get from network
-        return fetch(event.request).then(
-          networkResponse => {
-            // Check if we received a valid response to cache
-            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-              return networkResponse;
-            }
-
-            // IMPORTANT: Clone the response. A response is a stream
-            // and because we want the browser to consume the response
-            // as well as the cache consuming the response, we need
-            // to clone it so we have two streams.
+        // If it's not in the cache, fetch it from the network.
+        return fetch(event.request).then(networkResponse => {
+            // IMPORTANT: This is the critical fix. We now cache responses from CDNs.
+            // We clone the response because it's a stream that can only be consumed once.
             const responseToCache = networkResponse.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
+            caches.open(CACHE_NAME).then(cache => {
                 cache.put(event.request, responseToCache);
-              });
-
+            });
             return networkResponse;
-          }
-        );
+        });
       })
   );
 });
