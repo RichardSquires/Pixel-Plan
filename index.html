@@ -93,50 +93,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- React and Babel scripts -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- Embedded React Application -->
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
-
-      // --- IndexedDB Helper Functions ---
-      const DB_NAME = "PixelPlanDB";
-      const DB_VERSION = 1;
-      const STORES = ["tasks", "categories", "customIcons", "attributions"];
-
-      const openDB = () => {
-        return new Promise((resolve, reject) => {
-          const request = indexedDB.open(DB_NAME, DB_VERSION);
-          request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            STORES.forEach(storeName => {
-              if (!db.objectStoreNames.contains(storeName)) {
-                db.createObjectStore(storeName, { keyPath: "id", autoIncrement: true });
-              }
-            });
-          };
-          request.onsuccess = (event) => resolve(event.target.result);
-          request.onerror = (event) => reject(event.target.error);
-        });
-      };
-
-      const saveData = async (storeName, data) => {
-        const db = await openDB();
-        const tx = db.transaction(storeName, "readwrite");
-        const store = tx.objectStore(storeName);
-        store.clear(); // Clear old data
-        data.forEach(item => store.put(item));
-        return tx.complete;
-      };
-
-      const loadData = async (storeName) => {
-        const db = await openDB();
-        const tx = db.transaction(storeName, "readonly");
-        const store = tx.objectStore(storeName);
-        return store.getAll();
-      };
-
 
       // --- Helper Functions & Data ---
       const generateId = () =>
@@ -551,69 +515,68 @@
       );
 
       // --- Main App Component ---
-      const [page, setPage] = useState("tasks");
-      const [tasks, setTasks] = useState(initialTasks);
-      const [categories, setCategories] = useState(defaultCategories);
-      const [customIcons, setCustomIcons] = useState([]);
-      const [attributions, setAttributions] = useState([]);
-      const [loading, setLoading] = useState(true); // <-- ADD THIS
+      const App = () => {
+        const [page, setPage] = useState("tasks");
+        const [tasks, setTasks] = useState(() => {
+          try {
+            const savedTasks = localStorage.getItem("pixel-plan-tasks");
+            return savedTasks ? JSON.parse(savedTasks) : initialTasks;
+          } catch (error) {
+            console.error("Error parsing tasks from localStorage", error);
+            return initialTasks;
+          }
+        });
+        const [categories, setCategories] = useState(() => {
+          try {
+            const savedCategories = localStorage.getItem(
+              "pixel-plan-categories",
+            );
+            return savedCategories
+              ? JSON.parse(savedCategories)
+              : defaultCategories;
+          } catch (error) {
+            return defaultCategories;
+          }
+        });
+        const [customIcons, setCustomIcons] = useState(() => {
+          try {
+            const savedIcons = localStorage.getItem("pixel-plan-custom-icons");
+            return savedIcons ? JSON.parse(savedIcons) : [];
+          } catch (error) {
+            return [];
+          }
+        });
+        const [attributions, setAttributions] = useState(() => {
+          try {
+            const savedAttributions = localStorage.getItem(
+              "pixel-plan-attributions",
+            );
+            return savedAttributions ? JSON.parse(savedAttributions) : [];
+          } catch (error) {
+            return [];
+          }
+        });
+        const [showToast, setShowToast] = useState(false);
+        const [toastMessage, setToastMessage] = useState("");
+        const [editingTask, setEditingTask] = useState(null);
+        const [isAuthenticated, setIsAuthenticated] = useState(false);
+        const [passwordHash, setPasswordHash] = useState(null);
 
-      const [showToast, setShowToast] = useState(false);
-      const [toastMessage, setToastMessage] = useState("");
-      const [editingTask, setEditingTask] = useState(null);
-      const [isAuthenticated, setIsAuthenticated] = useState(false);
-      const [passwordHash, setPasswordHash] = useState(null);
-
-      // Simple hashing function (for demonstration only - NOT for production)
-      const simpleHash = (str) => {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
-          hash = (hash << 5) - hash + char;
-          hash |= 0; // Convert to 32bit integer
-        }
-        return hash.toString();
-      };
-
-      // Load data from IndexedDB on initial render
-      useEffect(() => {
-          const loadAllData = async () => {
-              try {
-                  const [loadedTasks, loadedCategories, loadedIcons, loadedAttributions] = await Promise.all([
-                      loadData('tasks'),
-                      loadData('categories'),
-                      loadData('customIcons'),
-                      loadData('attributions')
-                  ]);
-
-                  if (loadedTasks.length > 0) setTasks(loadedTasks);
-                  if (loadedCategories.length > 0) setCategories(loadedCategories);
-                  if (loadedIcons.length > 0) setCustomIcons(loadedIcons);
-                  if (loadedAttributions.length > 0) setAttributions(loadedAttributions);
-              } catch (error) {
-                  console.error("Failed to load data from IndexedDB", error);
-              } finally {
-                  setLoading(false); // <-- ADD THIS
-              }
-          };
-          loadAllData();
-      }, []);
-
-      useEffect(() => {
-        const storedHash = localStorage.getItem("pixel-plan-password");
-        const sessionActive =
-          localStorage.getItem("pixel-plan-session") === "true";
-        setPasswordHash(storedHash);
-        if (storedHash && sessionActive) {
-          setIsAuthenticated(true);
-        }
-      }, []);
-
+        // Simple hashing function (for demonstration only - NOT for production)
+        const simpleHash = (str) => {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash |= 0; // Convert to 32bit integer
+          }
+          return hash.toString();
+        };
 
         useEffect(() => {
           const storedHash = localStorage.getItem("pixel-plan-password");
           const sessionActive =
-            localStorage.getItem("pixel-plan-session") === "true"; // CHANGED
+            sessionStorage.getItem("pixel-plan-session") === "true";
           setPasswordHash(storedHash);
           if (storedHash && sessionActive) {
             setIsAuthenticated(true);
@@ -622,7 +585,7 @@
 
         const handleLogin = (password) => {
           if (simpleHash(password) === passwordHash) {
-            localStorage.setItem("pixel-plan-session", "true"); // CHANGED
+            sessionStorage.setItem("pixel-plan-session", "true");
             setIsAuthenticated(true);
             return true;
           }
@@ -632,26 +595,41 @@
         const handlePasswordSetup = (password) => {
           const newHash = simpleHash(password);
           localStorage.setItem("pixel-plan-password", newHash);
-          localStorage.setItem("pixel-plan-session", "true"); // CHANGED
+          sessionStorage.setItem("pixel-plan-session", "true");
           setPasswordHash(newHash);
           setIsAuthenticated(true);
         };
 
         const handleLogout = () => {
-          localStorage.removeItem("pixel-plan-session"); // CHANGED
+          sessionStorage.removeItem("pixel-plan-session");
           setIsAuthenticated(false);
           setPage("tasks");
         };
-        
-        // Save data to IndexedDB when it changes
-        useEffect(() => { saveData('tasks', tasks); }, [tasks]);
-        useEffect(() => { saveData('categories', categories); }, [categories]);
-        useEffect(() => { saveData('customIcons', customIcons); }, [customIcons]);
+
         useEffect(() => {
-        if(!loading) { // Only save after initial load
-            saveData('attributions', attributions);
-        }
-        }, [attributions, loading]);
+          localStorage.setItem("pixel-plan-tasks", JSON.stringify(tasks));
+        }, [tasks]);
+
+        useEffect(() => {
+          localStorage.setItem(
+            "pixel-plan-categories",
+            JSON.stringify(categories),
+          );
+        }, [categories]);
+
+        useEffect(() => {
+          localStorage.setItem(
+            "pixel-plan-custom-icons",
+            JSON.stringify(customIcons),
+          );
+        }, [customIcons]);
+
+        useEffect(() => {
+          localStorage.setItem(
+            "pixel-plan-attributions",
+            JSON.stringify(attributions),
+          );
+        }, [attributions]);
 
         const triggerToast = (message) => {
           setToastMessage(message);
@@ -844,32 +822,28 @@
           }
         };
 
-       if (loading && !passwordHash) {
-        return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-    }
+        if (!isAuthenticated) {
+          if (!passwordHash) {
+            return <PasswordSetupPage onSetup={handlePasswordSetup} />;
+          } else {
+            return <LoginPage onLogin={handleLogin} />;
+          }
+        }
 
-    if (!isAuthenticated) {
-      if (!passwordHash) {
-        return <PasswordSetupPage onSetup={handlePasswordSetup} />;
-      } else {
-        return <LoginPage onLogin={handleLogin} />;
-      }
-    }
-
-    return (
-      <div className="min-h-screen bg-white text-gray-800 font-pangolin">
-        <div className="container mx-auto max-w-lg p-4 pb-24">
-          <Header />
-          <main>{renderPage()}</main>
-        </div>
-        <BottomNav
-          currentPage={page}
-          setPage={setPage}
-          setEditingTask={setEditingTask}
-        />
-        <Toast message={toastMessage} isVisible={showToast} />
-      </div>
-    );
+        return (
+          <div className="min-h-screen bg-white text-gray-800 font-pangolin">
+            <div className="container mx-auto max-w-lg p-4 pb-24">
+              <Header />
+              <main>{renderPage()}</main>
+            </div>
+            <BottomNav
+              currentPage={page}
+              setPage={setPage}
+              setEditingTask={setEditingTask}
+            />
+            <Toast message={toastMessage} isVisible={showToast} />
+          </div>
+        );
       };
 
       // --- Auth Components ---
@@ -2577,67 +2551,56 @@
       };
 
       const SavedAttributionsPage = ({
-    setPage,
-    attributions,
-    setAttributions,
-  }) => {
-    const deleteAttribution = (idToDelete) => {
-      setAttributions((prev) =>
-        prev.filter((attr) => attr.id !== idToDelete),
-      );
-    };
+        setPage,
+        attributions,
+        setAttributions,
+      }) => {
+        const deleteAttribution = (indexToDelete) => {
+          setAttributions((prev) =>
+            prev.filter((_, index) => index !== indexToDelete),
+          );
+        };
 
-    return (
-      <div className="p-4 bg-white rounded-lg shadow-lg">
-        <div className="flex items-center mb-4">
-          <button
-            onClick={() => setPage("settings")}
-            className="p-2 rounded-full hover:bg-gray-100 mr-2"
-          >
-            <ChevronLeftIcon />
-          </button>
-          <h2 className="text-2xl font-bold text-gray-700">
-            Saved Attributions
-          </h2>
-        </div>
-        <div className="space-y-3">
-          {attributions.length > 0 ? (
-            attributions.map((attr) => (
-              <div
-                key={attr.id}
-                className="flex justify-between items-start p-3 bg-gray-50 rounded-lg"
+        return (
+          <div className="p-4 bg-white rounded-lg shadow-lg">
+            <div className="flex items-center mb-4">
+              <button
+                onClick={() => setPage("settings")}
+                className="p-2 rounded-full hover:bg-gray-100 mr-2"
               >
-                <p className="text-gray-700 whitespace-pre-wrap break-words mr-2">
-                  {attr.text}
+                <ChevronLeftIcon />
+              </button>
+              <h2 className="text-2xl font-bold text-gray-700">
+                Saved Attributions
+              </h2>
+            </div>
+            <div className="space-y-3">
+              {attributions.length > 0 ? (
+                attributions.map((attr, index) => (
+                  <div
+                    key={index}
+                    className="flex justify-between items-start p-3 bg-gray-50 rounded-lg"
+                  >
+                    <p className="text-gray-700 whitespace-pre-wrap break-words mr-2">
+                      {attr}
+                    </p>
+                    <button
+                      onClick={() => deleteAttribution(index)}
+                      className="p-1 text-red-500 flex-shrink-0"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 italic">
+                  No attributions saved yet.
                 </p>
-                <button
-                  onClick={() => deleteAttribution(attr.id)}
-                  className="p-1 text-red-500 flex-shrink-0"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">
-              No attributions saved yet.
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Inside the SettingsPage component...
-  const handleSaveAttribution = () => {
-      if (!attributionText.trim()) return;
-      const newAttribution = {
-          id: generateId(),
-          text: attributionText.trim()
+              )}
+            </div>
+          </div>
+        );
       };
-      setAttributions((prev) => [...prev, newAttribution]);
-      setAttributionText("");
-  };
 
       const SettingsPage = ({
         setPage,
