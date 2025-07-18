@@ -1,6 +1,7 @@
-const CACHE_NAME = "pixel-plan-v9";
-const STATIC_CACHE_NAME = "pixel-plan-static-v9";
-const RUNTIME_CACHE_NAME = "pixel-plan-runtime-v9";
+const CACHE_NAME = "pixel-plan-v10"; // Updated version
+const STATIC_CACHE_NAME = "pixel-plan-static-v10"; // Updated version
+const RUNTIME_CACHE_NAME = "pixel-plan-runtime-v10"; // Updated version
+
 
 // Core app resources that must be cached
 const CORE_FILES = [
@@ -71,6 +72,11 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
+  // Ignore IndexedDB requests
+  if (request.url.includes("idb-get") || request.url.includes("idb-put")) {
+    return;
+  }
+
   // Handle core app files with cache-first strategy
   if (CORE_FILES.some((file) => request.url.includes(file.replace("./", "")))) {
     event.respondWith(
@@ -127,6 +133,7 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
 
 // Handle background sync for offline functionality
 self.addEventListener("sync", (event) => {
