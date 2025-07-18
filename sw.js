@@ -1,58 +1,183 @@
-const CACHE_NAME = 'pixel-plan-v8'; // Incremented version to ensure an update.
+const CACHE_NAME = "pixel-plan-v9";
+const STATIC_CACHE_NAME = "pixel-plan-static-v9";
+const RUNTIME_CACHE_NAME = "pixel-plan-runtime-v9";
 
-// This list now includes ALL critical resources, including third-party scripts and fonts.
-const URLS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    '/icon-192x192.png',
-    '/icon-512x512.png',
-    'https://cdn.tailwindcss.com',
-    'https://unpkg.com/react@18/umd/react.development.js',
-    'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-    'https://unpkg.com/@babel/standalone/babel.min.js',
-    'https://fonts.googleapis.com/css2?family=Pangolin&family=Roboto:wght@400;500;700&display=swap'
+// Core app resources that must be cached
+const CORE_FILES = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon-192x192.png",
+  "./icon-512x512.png",
 ];
 
-// Install event: Caches all the critical resources listed above.
-// If any of these fail to download, the installation will fail, which is important for debugging.
-self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Service Worker: Caching all critical app resources.');
-                return cache.addAll(URLS_TO_CACHE);
-            })
-            .catch(error => {
-                console.error('Failed to cache critical resources during install:', error);
-            })
-    );
+// External resources to cache with network-first strategy
+const EXTERNAL_RESOURCES = [
+  "https://cdn.tailwindcss.com",
+  "https://unpkg.com/react@18/umd/react.development.js",
+  "https://unpkg.com/react-dom@18/umd/react-dom.development.js",
+  "https://unpkg.com/@babel/standalone/babel.min.js",
+  "https://fonts.googleapis.com/css2?family=Pangolin&display=swap",
+];
+
+// Install event - cache core files
+self.addEventListener("install", (event) => {
+  console.log("Service Worker: Installing...");
+  event.waitUntil(
+    caches
+      .open(STATIC_CACHE_NAME)
+      .then((cache) => {
+        console.log("Service Worker: Caching core app files");
+        return cache.addAll(CORE_FILES);
+      })
+      .then(() => {
+        console.log("Service Worker: Skip waiting");
+        return self.skipWaiting();
+      })
+      .catch((error) => {
+        console.error("Service Worker: Failed to cache core files:", error);
+      }),
+  );
 });
 
-// Activate event: Cleans up old caches to prevent conflicts.
-self.addEventListener('activate', event => {
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
-    );
-    return self.clients.claim();
+// Activate event - clean up old caches
+self.addEventListener("activate", (event) => {
+  console.log("Service Worker: Activating...");
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (
+              cacheName !== STATIC_CACHE_NAME &&
+              cacheName !== RUNTIME_CACHE_NAME
+            ) {
+              console.log("Service Worker: Deleting old cache:", cacheName);
+              return caches.delete(cacheName);
+            }
+          }),
+        );
+      })
+      .then(() => {
+        console.log("Service Worker: Claiming clients");
+        return self.clients.claim();
+      }),
+  );
 });
 
-// Fetch event: A simple and reliable "Cache First" strategy.
-// It checks the cache for a resource. If it's not there, it fetches from the network.
-// This works because the install step has already cached everything the app needs to run offline.
-self.addEventListener('fetch', event => {
+// Fetch event - implement cache strategies
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  // Handle core app files with cache-first strategy
+  if (CORE_FILES.some((file) => request.url.includes(file.replace("./", "")))) {
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                return response || fetch(event.request);
+      caches
+        .match(request)
+        .then((response) => {
+          return (
+            response ||
+            fetch(request).then((fetchResponse) => {
+              const responseClone = fetchResponse.clone();
+              caches.open(STATIC_CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+              return fetchResponse;
             })
+          );
+        })
+        .catch(() => {
+          // Fallback for core files
+          if (request.url.includes("index.html") || request.url.endsWith("/")) {
+            return caches.match("./index.html");
+          }
+        }),
     );
+    return;
+  }
+
+  // Handle external resources with network-first strategy
+  if (url.origin !== location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache successful responses
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Fallback to cache for external resources
+          return caches.match(request);
+        }),
+    );
+    return;
+  }
+
+  // Default strategy for other requests
+  event.respondWith(
+    caches.match(request).then((response) => {
+      return response || fetch(request);
+    }),
+  );
+});
+
+// Handle background sync for offline functionality
+self.addEventListener("sync", (event) => {
+  console.log("Service Worker: Background sync triggered");
+  if (event.tag === "background-sync") {
+    event.waitUntil(doBackgroundSync());
+  }
+});
+
+function doBackgroundSync() {
+  // Placeholder for background sync logic
+  return Promise.resolve();
+}
+
+// Handle push notifications
+self.addEventListener("push", (event) => {
+  console.log("Service Worker: Push message received");
+
+  const options = {
+    body: event.data ? event.data.text() : "New notification from Pixel Plan",
+    icon: "./icon-192x192.png",
+    badge: "./icon-192x192.png",
+    vibrate: [200, 100, 200],
+    data: {
+      dateOfArrival: Date.now(),
+      primaryKey: 1,
+    },
+    actions: [
+      {
+        action: "explore",
+        title: "Open App",
+        icon: "./icon-192x192.png",
+      },
+      {
+        action: "close",
+        title: "Close",
+        icon: "./icon-192x192.png",
+      },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification("Pixel Plan", options));
+});
+
+// Handle notification click
+self.addEventListener("notificationclick", (event) => {
+  console.log("Service Worker: Notification click received");
+
+  event.notification.close();
+
+  if (event.action === "explore") {
+    event.waitUntil(clients.openWindow("./"));
+  }
 });
