@@ -1740,7 +1740,6 @@
         const BottomNav = ({ currentPage, setPage, setEditingTask }) => {
             const navItems = [
                 { name: 'tasks', icon: <TasksIcon />, label: 'Tasks' },
-                // UPDATED: Use the new, larger icon for the nav bar
                 { name: 'recurring', icon: <RecurringIconNav />, label: 'Recurring' },
                 { name: 'calendar', icon: <CalendarDaysIcon />, label: 'Calendar' },
                 { name: 'settings', icon: <SettingsIcon />, label: 'Settings' }
@@ -1749,7 +1748,7 @@
             const NavButton = ({ item }) => (
                 <button
                     onClick={() => setPage(item.name)}
-                    className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${currentPage === item.name ? 'text-gray-400' : 'text-white'}`}
+                    className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${currentPage === item.name ? 'text-gray-600' : 'text-white'}`}
                 >
                     {item.icon}
                     <span className="text-xs font-medium">{item.label}</span>
@@ -1768,7 +1767,8 @@
                                     setEditingTask(null);
                                     setPage('add');
                                 }}
-                                className="absolute bottom-4 w-16 h-16 bg-blue-200 rounded-full shadow-lg flex items-center justify-center text-white hover:bg-blue-300 transition-all transform hover:scale-110"
+                                // UPDATED: Changed bottom-4 to bottom-8 to center the button on the top edge
+                                className="absolute bottom-8 w-16 h-16 bg-blue-200 rounded-full shadow-lg flex items-center justify-center text-white hover:bg-blue-300 transition-all transform hover:scale-110"
                                 aria-label="Add New Task"
                             >
                                 <PlusIcon />
