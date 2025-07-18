@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#C7B9FF" /> 
+    <title>Pixel Plan</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pangolin&display=swap" rel="stylesheet">
+    <style>
+        /* Define the custom font family */
+        .font-pangolin {
+            font-family: 'Pangolin', cursive;
+        }
+        /* Apply the font to the whole app by default */
+        body {
+            font-family: 'Pangolin', cursive;
+        }
+        /* Custom animation for toast */
+        @keyframes fade-in-out {
+            0% { opacity: 0; transform: translateY(20px) translateX(-50%); }
+            10% { opacity: 1; transform: translateY(0) translateX(-50%); }
+            90% { opacity: 1; transform: translateY(0) translateX(-50%); }
+            100% { opacity: 0; transform: translateY(20px) translateX(-50%); }
+        }
+        .animate-fade-in-out {
+            animation: fade-in-out 3s ease-in-out forwards;
+        }
+    </style>
+    <script>
+      // Tailwind Customization
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              pangolin: ['Pangolin', 'cursive'],
+            },
+            colors: {
+              purple: {
+                '500': '#C7B9FF', // medium pastel purple
+                '600': '#B2A4FF',
+                '700': '#A394F0',
+                '400': '#D8CFFF',
+                '200': '#EAE6FF',
+              },
+              blue: {
+                '100': '#DBEAFE', 
+                '200': '#BFDBFE', // light pastel blue
+                '800': '#1E40AF',
+                '900': '#1E3A8A',
+              }
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <!-- React and Babel scripts -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Embedded React Application -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Helper Functions & Data ---
+        const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const parts = dateString.split('-');
+            const date = new Date(parts[0], parts[1] - 1, parts[2]);
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        };
+
+        const initialTasks = [
+            { id: generateId(), content: 'Design new app icon', categoryId: 'cat_work', completed: false, dueDate: '2025-07-20', time: '10:00 AM', iconId: null, reminderOn: false, reminderDate: '', reminderTime: '', subtasks: [{id: generateId(), text: 'Sketch concepts', completed: true}, {id: generateId(), text: 'Finalize vector', completed: false}, {id: generateId(), text: 'Export assets', completed: false}], recurrence: { type: 'weekly', days: [] } },
+            { id: generateId(), content: 'Buy milk and eggs', categoryId: 'cat_shopping', completed: true, dueDate: '2025-07-18', time: '02:30 PM', iconId: null, reminderOn: true, reminderDate: '2025-07-18', reminderTime: '02:00 PM', subtasks: [], recurrence: { type: 'no-schedule', days: [] } },
+            { id: generateId(), content: '30-minute walk', categoryId: 'cat_health', completed: false, dueDate: '2025-07-17', time: '', iconId: null, reminderOn: false, reminderDate: '', reminderTime: '', subtasks: [], recurrence: { type: 'daily', days: [] } },
+            { id: generateId(), content: 'Read "The Design of Everyday Things"', categoryId: 'cat_personal', completed: false, dueDate: '2025-07-17', time: '08:00 PM', iconId: null, reminderOn: false, reminderDate: '', reminderTime: '', subtasks: [], recurrence: { type: 'no-schedule', days: [] } },
+        ];
+        
+        const defaultCategories = [
+            { id: 'cat_personal', name: 'Personal', iconId: null },
+            { id: 'cat_work', name: 'Work', iconId: null },
+            { id: 'cat_health', name: 'Health', iconId: null },
+            { id: 'cat_shopping', name: 'Shopping', iconId: null },
+        ];
+
+        // --- SVG Icons ---
+        const TasksIcon = () => (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+        );
+
+        const RecurringIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <path d="m17 2 4 4-4 4"/>
+                <path d="M3 11v-1a4 4 0 0 1 4-4h14"/>
+                <path d="m7 22-4-4 4-4"/>
+                <path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+            </svg>
+        );
+
+        const CalendarDaysIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
+
+        const PlusIcon = () => (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        );
+
+        const SettingsIcon = () => (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        );
+
+        const TrashIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
+
+        const EditIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" />
+            </svg>
+        );
+        
+        const BellIcon = ({ colorClass = 'text-gray-400' }) => (
+          <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-colors duration-300 ${colorClass}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        );
+
+        const ChevronLeftIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+        );
+
+        const ChevronRightIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+        );
+        
+        const LockIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        );
+        
+        const ArrowUpIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>;
+        const ArrowDownIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>;
+        const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>;
+        const CalendarPlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zM12 14v4m-2-2h4" /></svg>;
+        const CheckmarkOverlayIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+        );
+        const Calendar1Icon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 14h1v4"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>;
+
+
+        // --- Main App Component ---
+        const App = () => {
+            const [page, setPage] = useState('tasks');
+            const [tasks, setTasks] = useState(() => {
+                try {
+                    const savedTasks = localStorage.getItem('pixel-plan-tasks');
+                    return savedTasks ? JSON.parse(savedTasks) : initialTasks;
+                } catch (error) {
+                    console.error("Error parsing tasks from localStorage", error);
+                    return initialTasks;
+                }
+            });
+            const [categories, setCategories] = useState(() => {
+                try {
+                    const savedCategories = localStorage.getItem('pixel-plan-categories');
+                    return savedCategories ? JSON.parse(savedCategories) : defaultCategories;
+                } catch (error) {
+                    return defaultCategories;
+                }
+            });
+            const [customIcons, setCustomIcons] = useState(() => {
+                try {
+                    const savedIcons = localStorage.getItem('pixel-plan-custom-icons');
+                    return savedIcons ? JSON.parse(savedIcons) : [];
+                } catch (error) {
+                    return [];
+                }
+            });
+            const [attributions, setAttributions] = useState(() => {
+                try {
+                    const savedAttributions = localStorage.getItem('pixel-plan-attributions');
+                    return savedAttributions ? JSON.parse(savedAttributions) : [];
+                } catch (error) {
+                    return [];
+                }
+            });
+            const [showToast, setShowToast] = useState(false);
+            const [toastMessage, setToastMessage] = useState('');
+            const [editingTask, setEditingTask] = useState(null);
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [passwordHash, setPasswordHash] = useState(null);
+
+            // Simple hashing function (for demonstration only - NOT for production)
+            const simpleHash = (str) => {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = (hash << 5) - hash + char;
+                    hash |= 0; // Convert to 32bit integer
+                }
+                return hash.toString();
+            };
+
+            useEffect(() => {
+                const storedHash = localStorage.getItem('pixel-plan-password');
+                const sessionActive = sessionStorage.getItem('pixel-plan-session') === 'true';
+                setPasswordHash(storedHash);
+                if (storedHash && sessionActive) {
+                    setIsAuthenticated(true);
+                }
+            }, []);
+
+            const handleLogin = (password) => {
+                if (simpleHash(password) === passwordHash) {
+                    sessionStorage.setItem('pixel-plan-session', 'true');
+                    setIsAuthenticated(true);
+                    return true;
+                }
+                return false;
+            };
+
+            const handlePasswordSetup = (password) => {
+                const newHash = simpleHash(password);
+                localStorage.setItem('pixel-plan-password', newHash);
+                sessionStorage.setItem('pixel-plan-session', 'true');
+                setPasswordHash(newHash);
+                setIsAuthenticated(true);
+            };
+
+            const handleLogout = () => {
+                sessionStorage.removeItem('pixel-plan-session');
+                setIsAuthenticated(false);
+                setPage('tasks');
+            };
+
+            useEffect(() => {
+                localStorage.setItem('pixel-plan-tasks', JSON.stringify(tasks));
+            }, [tasks]);
+
+            useEffect(() => {
+                localStorage.setItem('pixel-plan-categories', JSON.stringify(categories));
+            }, [categories]);
+
+            useEffect(() => {
+                localStorage.setItem('pixel-plan-custom-icons', JSON.stringify(customIcons));
+            }, [customIcons]);
+
+            useEffect(() => {
+                localStorage.setItem('pixel-plan-attributions', JSON.stringify(attributions));
+            }, [attributions]);
+            
+            const triggerToast = (message) => {
+                setToastMessage(message);
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 3000);
+            };
+
+            const handleAddTask = (task) => {
+                setTasks([task, ...tasks]);
+                triggerToast('Task added successfully!');
+                setPage('tasks');
+            };
+            
+            const handleUpdateTask = (updatedTask) => {
+                setTasks(tasks.map(task => task.id === updatedTask.id ? updatedTask : task));
+                triggerToast('Task updated successfully!');
+                setEditingTask(null);
+                setPage('tasks');
+            };
+
+            const toggleTaskCompletion = (taskId) => {
+                setTasks(tasks.map(task =>
+                    task.id === taskId ? { ...task, completed: !task.completed } : task
+                ));
+            };
+            
+            const handleToggleSubtask = (taskId, subtaskId) => {
+                setTasks(tasks.map(task => {
+                    if (task.id === taskId) {
+                        const updatedSubtasks = task.subtasks.map(subtask => {
+                            if (subtask.id === subtaskId) {
+                                return { ...subtask, completed: !subtask.completed };
+                            }
+                            return subtask;
+                        });
+                        return { ...task, subtasks: updatedSubtasks };
+                    }
+                    return task;
+                }));
+            };
+            
+            const handlePostponeTask = (taskId) => {
+                setTasks(tasks.map(task => {
+                    if (task.id === taskId) {
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        const formattedDate = tomorrow.toISOString().split('T')[0];
+                        return { ...task, dueDate: formattedDate };
+                    }
+                    return task;
+                }));
+                triggerToast('Task postponed to tomorrow!');
+            };
+
+            const handleDeleteTask = (taskId) => {
+                setTasks(tasks.filter(task => task.id !== taskId));
+                triggerToast('Task deleted.');
+            };
+            
+            const startEditing = (task) => {
+                setEditingTask(task);
+                setPage('add');
+            };
+            
+            const handleCreateOneTimeTask = (templateTask, date) => {
+                const newTask = {
+                    ...templateTask,
+                    id: generateId(),
+                    dueDate: date,
+                    recurrence: { type: 'no-schedule', days: [] },
+                    completed: false,
+                    subtasks: templateTask.subtasks.map(st => ({...st, id: generateId(), completed: false}))
+                };
+                delete newTask.isTemplate; // Ensure it's not treated as a template anymore
+                setTasks(prevTasks => [newTask, ...prevTasks]);
+                triggerToast(`'${templateTask.content}' added for ${formatDate(date)}!`);
+            };
+
+            const renderPage = () => {
+                switch (page) {
+                    case 'tasks':
+                        return <HomePage tasks={tasks} categories={categories} customIcons={customIcons} onToggle={toggleTaskCompletion} onToggleSubtask={handleToggleSubtask} onDelete={handleDeleteTask} onEdit={startEditing} onPostpone={handlePostponeTask} />;
+                    case 'add':
+                        return <AddTaskPage onAddTask={handleAddTask} onUpdateTask={handleUpdateTask} editingTask={editingTask} setEditingTask={setEditingTask} categories={categories} customIcons={customIcons} />;
+                    case 'recurring':
+                        return <RecurringTasksPage tasks={tasks} categories={categories} customIcons={customIcons} onEdit={startEditing} onCreateOneTime={handleCreateOneTimeTask} />;
+                    case 'calendar':
+                        return <CalendarPage tasks={tasks} customIcons={customIcons} setPage={setPage} onEdit={startEditing} />;
+                    case 'settings':
+                        return <SettingsPage setPage={setPage} onLogout={handleLogout} attributions={attributions} setAttributions={setAttributions} />;
+                    case 'manage-icons':
+                        return <ManageCustomIconsPage setPage={setPage} customIcons={customIcons} setCustomIcons={setCustomIcons} />;
+                    case 'manage-categories':
+                        return <ManageCategoriesPage setPage={setPage} categories={categories} setCategories={setCategories} customIcons={customIcons} />;
+                    case 'saved-attributions':
+                        return <SavedAttributionsPage setPage={setPage} attributions={attributions} setAttributions={setAttributions} />;
+                    default:
+                        return <HomePage tasks={tasks} categories={categories} customIcons={customIcons} onToggle={toggleTaskCompletion} onToggleSubtask={handleToggleSubtask} onDelete={handleDeleteTask} onEdit={startEditing} onPostpone={handlePostponeTask} />;
+                }
+            };
+
+            if (!isAuthenticated) {
+                if (!passwordHash) {
+                    return <PasswordSetupPage onSetup={handlePasswordSetup} />;
+                } else {
+                    return <LoginPage onLogin={handleLogin} />;
+                }
+            }
+
+            return (
+                <div className="min-h-screen bg-white text-gray-800 font-pangolin">
+                    <div className="container mx-auto max-w-lg p-4 pb-24">
+                        <Header />
+                        <main>{renderPage()}</main>
+                    </div>
+                    <BottomNav currentPage={page} setPage={setPage} setEditingTask={setEditingTask} />
+                    <Toast message={toastMessage} isVisible={showToast} />
+                </div>
+            );
+        };
+
+        // --- Auth Components ---
+        const PasswordSetupPage = ({ onSetup }) => {
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (password.length < 4) {
+                    setError('Password must be at least 4 characters long.');
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    setError('Passwords do not match.');
+                    return;
+                }
+                setError('');
+                onSetup(password);
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4">
+                    <div className="w-full max-w-sm text-center">
+                        <LockIcon />
+                        <h1 className="text-2xl font-bold text-gray-700 mt-4">Set Up Your Password</h1>
+                        <p className="text-gray-500 mb-6">Create a password to keep your plans private.</p>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter password"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                            />
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Confirm password"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                            />
+                            {error && <p className="text-red-500 text-sm">{error}</p>}
+                            <button
+                                type="submit"
+                                className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg"
+                            >
+                                Save & Continue
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const LoginPage = ({ onLogin }) => {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const success = onLogin(password);
+                if (!success) {
+                    setError('Incorrect password. Please try again.');
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4">
+                    <div className="w-full max-w-sm text-center">
+                        <LockIcon />
+                        <h1 className="text-2xl font-bold text-gray-700 mt-4">Welcome Back!</h1>
+                        <p className="text-gray-500 mb-6">Enter your password to unlock your planner.</p>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter password"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                            />
+                            {error && <p className="text-red-500 text-sm">{error}</p>}
+                            <button
+                                type="submit"
+                                className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg"
+                            >
+                                Unlock
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Sub-components ---
+        const Header = () => (
+            <header className="text-center py-4 mb-4">
+                <h1 className="text-4xl font-bold text-purple-600">Pixel Plan</h1>
+            </header>
+        );
+        
+        const IconPickerModal = ({ customIcons, onSelect, onClose }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const filteredIcons = customIcons.filter(icon => icon.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-gray-700">Choose an Icon</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-800">&times;</button>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search icons..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-md mb-4"
+                        />
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 max-h-80 overflow-y-auto">
+                            {filteredIcons.map(icon => (
+                                <button
+                                    key={icon.id}
+                                    onClick={() => {
+                                        onSelect(icon.id);
+                                        onClose();
+                                    }}
+                                    className="p-2 bg-gray-100 rounded-lg flex flex-col items-center justify-center hover:bg-purple-200"
+                                    title={icon.name}
+                                >
+                                    <img src={icon.src} alt={icon.name} className="w-10 h-10 object-contain"/>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // --- Page Components ---
+
+        const HomePage = ({ tasks, categories, customIcons, onToggle, onToggleSubtask, onDelete, onEdit, onPostpone }) => {
+            const incompleteTasks = tasks.filter(t => !t.completed);
+            const completedTasks = tasks.filter(t => t.completed);
+            
+            const getCategoryName = (categoryId) => {
+                const category = categories.find(c => c.id === categoryId);
+                return category ? category.name : 'Uncategorized';
+            };
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-semibold mb-4 text-gray-700">In Progress</h2>
+                    {incompleteTasks.length > 0 ? (
+                        <div className="space-y-3">
+                            {incompleteTasks.map(task => (
+                                <TaskItem key={task.id} task={task} categoryName={getCategoryName(task.categoryId)} customIcons={customIcons} onToggle={onToggle} onToggleSubtask={onToggleSubtask} onDelete={onDelete} onEdit={onEdit} onPostpone={onPostpone} />
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 italic">No tasks in progress. Add one!</p>
+                    )}
+
+                    <h2 className="text-2xl font-semibold my-4 pt-4 border-t border-gray-200 text-gray-700">Completed</h2>
+                    {completedTasks.length > 0 ? (
+                        <div className="space-y-3">
+                            {completedTasks.map(task => (
+                                <TaskItem key={task.id} task={task} categoryName={getCategoryName(task.categoryId)} customIcons={customIcons} onToggle={onToggle} onToggleSubtask={onToggleSubtask} onDelete={onDelete} onEdit={onEdit} onPostpone={onPostpone} />
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 italic">No tasks completed yet.</p>
+                    )}
+                </div>
+            );
+        };
+
+        const TaskItem = ({ task, categoryName, customIcons, onToggle, onToggleSubtask, onDelete, onEdit, onPostpone }) => {
+            const icon = customIcons.find(i => i.id === task.iconId);
+            const itemRef = useRef(null);
+            const startX = useRef(0);
+            const currentX = useRef(0);
+            const [translateX, setTranslateX] = useState(0);
+
+            const handleSwipeStart = (e) => {
+                if (task.completed) return;
+                startX.current = e.touches ? e.touches[0].clientX : e.clientX;
+                if (itemRef.current) {
+                    itemRef.current.style.transition = 'none';
+                }
+            };
+
+            const handleSwipeMove = (e) => {
+                if (task.completed || startX.current === 0) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                let deltaX = clientX - startX.current;
+                
+                currentX.current = deltaX;
+                setTranslateX(deltaX);
+            };
+
+            const handleSwipeEnd = () => {
+                if (task.completed || startX.current === 0) return;
+                
+                if (itemRef.current) {
+                    itemRef.current.style.transition = 'transform 0.3s ease';
+                }
+
+                if (currentX.current < -80) { // Swipe left threshold
+                    onToggle(task.id);
+                } else if (currentX.current > 80) { // Swipe right threshold
+                    onPostpone(task.id);
+                }
+                
+                currentX.current = 0;
+                startX.current = 0;
+                setTranslateX(0);
+            };
+
+            return (
+                <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                    {/* Backgrounds */}
+                    <div className="absolute inset-0 flex justify-between items-center text-white">
+                        <div className="bg-gray-600 h-full flex items-center px-6" style={{ width: `${Math.max(0, translateX)}px`, opacity: Math.min(1, translateX / 80) }}>
+                            <div className="flex items-center">
+                                <CalendarPlusIcon />
+                                <span className="ml-2 font-bold">Postpone</span>
+                            </div>
+                        </div>
+                        <div className="bg-green-500 h-full flex items-center justify-end px-6 absolute right-0 top-0" style={{ width: `${Math.max(0, -translateX)}px`, opacity: Math.min(1, -translateX / 80) }}>
+                            <div className="flex items-center">
+                                <span className="mr-2 font-bold">Complete</span>
+                                <CheckIcon />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Task Item Content (The moving part) */}
+                    <div 
+                        ref={itemRef}
+                        className="relative bg-white"
+                        style={{ transform: `translateX(${translateX}px)`, touchAction: 'pan-y' }}
+                        onTouchStart={handleSwipeStart}
+                        onTouchMove={handleSwipeMove}
+                        onTouchEnd={handleSwipeEnd}
+                        onMouseDown={handleSwipeStart}
+                        onMouseMove={handleSwipeMove}
+                        onMouseUp={handleSwipeEnd}
+                        onMouseLeave={handleSwipeEnd}
+                    >
+                        <div className="p-3 border-l-4 border-blue-200">
+                            <div className="flex items-start">
+                                <button onClick={() => onToggle(task.id)} className="relative mr-4 mt-1 w-6 h-6 flex-shrink-0">
+                                    <div className={`absolute inset-0 flex items-center justify-center text-purple-500 ${task.completed ? 'opacity-40' : ''}`}>
+                                        {icon ? <img src={icon.src} alt="task icon" className="w-full h-full object-contain" /> : <TasksIcon />}
+                                    </div>
+                                    {task.completed && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <CheckmarkOverlayIcon />
+                                        </div>
+                                    )}
+                                </button>
+                                <div className="flex-grow">
+                                    <p className={`text-lg ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                                        {task.content}
+                                    </p>
+                                    <div className="text-sm text-gray-500 flex items-center space-x-2 mt-1">
+                                        <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">{categoryName}</span>
+                                        {task.dueDate && <span>{formatDate(task.dueDate)}</span>}
+                                        {task.time && <span className="ml-2">{task.time}</span>}
+                                        {task.recurrence && task.recurrence.type !== 'no-schedule' && <RecurringIcon />}
+                                    </div>
+                                    {task.reminderOn && task.reminderDate && (
+                                        <div className="text-xs text-purple-500 flex items-center space-x-1 mt-1">
+                                            <BellIcon colorClass="text-purple-500 h-4 w-4" />
+                                            <span>{formatDate(task.reminderDate)} at {task.reminderTime}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center ml-2">
+                                    {!task.completed && (
+                                        <button onClick={() => onEdit(task)} className="p-2 text-gray-500 hover:text-blue-500 transition-colors">
+                                            <EditIcon />
+                                        </button>
+                                    )}
+                                    <button onClick={() => onDelete(task.id)} className="p-2 text-gray-500 hover:text-red-500 transition-colors">
+                                        <TrashIcon />
+                                    </button>
+                                </div>
+                            </div>
+                             {task.subtasks && task.subtasks.length > 0 && (
+                                <div className="pl-12 pr-4 pt-2 space-y-1">
+                                    {task.subtasks.map(subtask => (
+                                        <div key={subtask.id} className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={subtask.completed}
+                                                onChange={() => onToggleSubtask(task.id, subtask.id)}
+                                                className="form-checkbox h-4 w-4 text-purple-500 rounded focus:ring-purple-400 border-gray-300"
+                                            />
+                                            <span className={`ml-2 text-sm ${subtask.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>{subtask.text}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AddTaskPage = ({ onAddTask, onUpdateTask, editingTask, setEditingTask, categories, customIcons }) => {
+            const [content, setContent] = useState('');
+            const [categoryId, setCategoryId] = useState(categories.length > 0 ? categories[0].id : '');
+            const [dueDate, setDueDate] = useState('');
+            const [time, setTime] = useState('');
+            const [showTimePicker, setShowTimePicker] = useState(false);
+            const [selectedIconId, setSelectedIconId] = useState(null);
+            
+            const [subtasks, setSubtasks] = useState([]);
+            const [subtaskInput, setSubtaskInput] = useState('');
+            const [subtasksOn, setSubtasksOn] = useState(false);
+
+            const [reminderOn, setReminderOn] = useState(false);
+            const [reminderDate, setReminderDate] = useState('');
+            const [reminderTime, setReminderTime] = useState('');
+            const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+            
+            const [recurrence, setRecurrence] = useState({ type: 'no-schedule', days: [] });
+            const [showIconPicker, setShowIconPicker] = useState(false);
+
+            const isEditing = editingTask !== null;
+
+            useEffect(() => {
+                if (isEditing) {
+                    setContent(editingTask.content);
+                    setCategoryId(editingTask.categoryId || (categories.length > 0 ? categories[0].id : ''));
+                    setDueDate(editingTask.dueDate || '');
+                    setTime(editingTask.time || '');
+                    setSelectedIconId(editingTask.iconId || null);
+                    setSubtasks(editingTask.subtasks || []);
+                    setSubtasksOn(!!editingTask.subtasks && editingTask.subtasks.length > 0);
+                    setReminderOn(editingTask.reminderOn || false);
+                    setReminderDate(editingTask.reminderDate || '');
+                    setReminderTime(editingTask.reminderTime || '');
+                    setRecurrence(editingTask.recurrence || { type: 'no-schedule', days: [] });
+                } else {
+                    setContent('');
+                    setCategoryId(categories.length > 0 ? categories[0].id : '');
+                    setDueDate('');
+                    setTime('');
+                    setSelectedIconId(null);
+                    setSubtasks([]);
+                    setSubtasksOn(false);
+                    setReminderOn(false);
+                    setReminderDate('');
+                    setReminderTime('');
+                    setRecurrence({ type: 'no-schedule', days: [] });
+                }
+            }, [editingTask, isEditing, categories]);
+            
+            const handleAddSubtask = () => {
+                if (!subtaskInput.trim()) return;
+                setSubtasks([...subtasks, { id: generateId(), text: subtaskInput.trim(), completed: false }]);
+                setSubtaskInput('');
+            };
+
+            const handleDeleteSubtask = (subtaskId) => {
+                setSubtasks(subtasks.filter(s => s.id !== subtaskId));
+            };
+
+            const handleRecurrenceChange = (e) => {
+                setRecurrence({ ...recurrence, type: e.target.value });
+            };
+
+            const handleDayToggle = (dayIndex) => {
+                const newDays = [...recurrence.days];
+                if (newDays.includes(dayIndex)) {
+                    setRecurrence({ ...recurrence, days: newDays.filter(d => d !== dayIndex) });
+                } else {
+                    setRecurrence({ ...recurrence, days: [...newDays, dayIndex] });
+                }
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!content.trim()) return;
+                
+                const taskData = {
+                    id: isEditing ? editingTask.id : generateId(),
+                    content,
+                    categoryId,
+                    dueDate,
+                    time,
+                    iconId: selectedIconId,
+                    subtasks: subtasksOn ? subtasks : [],
+                    reminderOn,
+                    reminderDate,
+                    reminderTime,
+                    recurrence,
+                    completed: isEditing ? editingTask.completed : false,
+                };
+
+                if(isEditing) {
+                    onUpdateTask(taskData);
+                } else {
+                    onAddTask(taskData);
+                }
+                
+                setContent('');
+                setCategoryId(categories.length > 0 ? categories[0].id : '');
+                setDueDate('');
+                setTime('');
+                setSelectedIconId(null);
+                setSubtasks([]);
+                setSubtasksOn(false);
+                setReminderOn(false);
+                setReminderDate('');
+                setReminderTime('');
+                setRecurrence({ type: 'no-schedule', days: [] });
+                setEditingTask(null);
+            };
+
+            const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const currentIcon = customIcons.find(i => i.id === selectedIconId);
+
+            return (
+                <>
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">{isEditing ? 'Edit Task' : 'Add a New Task'}</h2>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div>
+                            <label htmlFor="task-content" className="block text-sm font-medium text-gray-700 mb-1">Task</label>
+                            <input
+                                id="task-content"
+                                type="text"
+                                value={content}
+                                onChange={(e) => setContent(e.target.value)}
+                                placeholder="e.g., Take over the tri-state area"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50"
+                                required
+                            />
+                        </div>
+                        <div className="flex items-end space-x-4">
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowIconPicker(true)}
+                                    className="w-10 h-10 p-2 border border-gray-300 rounded-md bg-gray-50 flex items-center justify-center"
+                                >
+                                    {currentIcon ? (
+                                        <img src={currentIcon.src} className="w-6 h-6" />
+                                    ) : (
+                                        <TasksIcon />
+                                    )}
+                                </button>
+                            </div>
+                            <div className="flex-grow">
+                                <label htmlFor="task-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <select
+                                    id="task-category"
+                                    value={categoryId}
+                                    onChange={(e) => setCategoryId(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50"
+                                >
+                                    {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex space-x-4">
+                            <div className="flex-1">
+                                <label htmlFor="task-due-date" className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                                <input
+                                    id="task-due-date"
+                                    type="date"
+                                    value={dueDate}
+                                    onChange={(e) => setDueDate(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTimePicker(true)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-left"
+                                >
+                                    {time || 'Set Time'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Recurring Task Section */}
+                        <div className="pt-4 border-t border-gray-200">
+                            <label htmlFor="recurrence-rule" className="block text-sm font-medium text-gray-700 mb-1">Recurring</label>
+                            <select
+                                id="recurrence-rule"
+                                value={recurrence.type}
+                                onChange={handleRecurrenceChange}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50 font-pangolin"
+                            >
+                                <option value="no-schedule">No schedule</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="specific-days">On certain days</option>
+                            </select>
+                            {recurrence.type === 'specific-days' && (
+                                <div className="flex justify-around mt-4">
+                                    {weekDays.map((day, index) => (
+                                        <button
+                                            key={day}
+                                            type="button"
+                                            onClick={() => handleDayToggle(index)}
+                                            className={`w-9 h-9 rounded-full text-sm font-semibold transition-all ${recurrence.days.includes(index) ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                                        >
+                                            {day.charAt(0)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Subtasks Section */}
+                        <div className="pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700">Subtasks</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setSubtasksOn(!subtasksOn)}
+                                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${subtasksOn ? 'bg-purple-500' : 'bg-gray-200'}`}
+                                >
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${subtasksOn ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                            {subtasksOn && (
+                                <div className="mt-4">
+                                    <div className="flex space-x-2">
+                                        <input
+                                            type="text"
+                                            value={subtaskInput}
+                                            onChange={(e) => setSubtaskInput(e.target.value)}
+                                            placeholder="Add a subtask..."
+                                            className="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                                        />
+                                        <button type="button" onClick={handleAddSubtask} className="bg-purple-500 text-white px-4 rounded-md">Add</button>
+                                    </div>
+                                    <div className="mt-2 space-y-1">
+                                        {subtasks.map(subtask => (
+                                            <div key={subtask.id} className="flex items-center justify-between bg-gray-100 p-2 rounded">
+                                                <span>{subtask.text}</span>
+                                                <button type="button" onClick={() => handleDeleteSubtask(subtask.id)} className="text-red-500">&times;</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Reminder Section */}
+                        <div className="pt-4 border-t border-gray-200">
+                             <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700">Reminder</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setReminderOn(!reminderOn)}
+                                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${reminderOn ? 'bg-purple-500' : 'bg-gray-200'}`}
+                                >
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${reminderOn ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                             </div>
+                             {reminderOn && (
+                                 <div className="flex space-x-4 mt-4">
+                                     <div className="flex-1">
+                                         <label htmlFor="reminder-date" className="block text-sm font-medium text-gray-700 mb-1">Reminder Date</label>
+                                         <input
+                                             id="reminder-date"
+                                             type="date"
+                                             value={reminderDate}
+                                             onChange={(e) => setReminderDate(e.target.value)}
+                                             className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50"
+                                         />
+                                     </div>
+                                     <div className="flex-1">
+                                         <label className="block text-sm font-medium text-gray-700 mb-1">Reminder Time</label>
+                                         <button
+                                             type="button"
+                                             onClick={() => setShowReminderTimePicker(true)}
+                                             className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-left"
+                                         >
+                                             {reminderTime || 'Set Time'}
+                                         </button>
+                                     </div>
+                                 </div>
+                             )}
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                        >
+                            {isEditing ? 'Update Task' : 'Add Task'}
+                        </button>
+                    </form>
+                </div>
+                {showTimePicker && <TimePicker initialTime={time} onTimeSelect={setTime} onClose={() => setShowTimePicker(false)} />}
+                {showReminderTimePicker && <TimePicker initialTime={reminderTime} onTimeSelect={setReminderTime} onClose={() => setShowReminderTimePicker(false)} />}
+                {showIconPicker && <IconPickerModal customIcons={customIcons} onSelect={setSelectedIconId} onClose={() => setShowIconPicker(false)} />}
+                </>
+            );
+        };
+        
+        const TimePicker = ({ initialTime, onTimeSelect, onClose }) => {
+            const parseInitialTime = () => {
+                if (!initialTime) return new Date();
+                const [timePart, ampmPart] = initialTime.split(' ');
+                let [hours, minutes] = timePart.split(':').map(Number);
+                if (ampmPart === 'PM' && hours < 12) hours += 12;
+                if (ampmPart === 'AM' && hours === 12) hours = 0;
+                const date = new Date();
+                date.setHours(hours, minutes);
+                return date;
+            };
+
+            const [date, setDate] = useState(parseInitialTime);
+            const [mode, setMode] = useState('hour'); // 'hour' or 'minute'
+            const clockRef = useRef(null);
+            const isDragging = useRef(false);
+            const draggingHand = useRef(null);
+
+            const hour = date.getHours() % 12 || 12;
+            const minute = date.getMinutes();
+            const ampm = date.getHours() >= 12 ? 'PM' : 'AM';
+
+            const handleInteraction = (e) => {
+                e.preventDefault();
+                if (!clockRef.current) return;
+                const rect = clockRef.current.getBoundingClientRect();
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+                const x = clientX - rect.left - centerX;
+                const y = clientY - rect.top - centerY;
+                
+                let angle = Math.atan2(y, x) * (180 / Math.PI);
+                angle = (angle + 90 + 360) % 360;
+
+                const currentHand = draggingHand.current || mode;
+
+                if (currentHand === 'hour') {
+                    let newHour = Math.round(angle / 30);
+                    if (newHour === 0) newHour = 12;
+                    const new24Hour = ampm === 'PM' ? (newHour === 12 ? 12 : newHour + 12) : (newHour === 12 ? 0 : newHour);
+                    setDate(d => new Date(d.setHours(new24Hour)));
+                } else if (currentHand === 'minute') {
+                    let newMinute = Math.round(angle / 6);
+                    if (newMinute === 60) newMinute = 0;
+                    setDate(d => new Date(d.setMinutes(newMinute)));
+                }
+            };
+
+            const handleMouseDown = (e) => {
+                isDragging.current = true;
+                handleInteraction(e);
+            };
+
+            const handleMouseMove = (e) => {
+                if (isDragging.current) {
+                    handleInteraction(e);
+                }
+            };
+
+            const handleMouseUp = () => {
+                if(isDragging.current && (draggingHand.current === 'hour' || mode === 'hour')) {
+                    setTimeout(() => setMode('minute'), 100);
+                }
+                isDragging.current = false;
+                draggingHand.current = null;
+            };
+
+            useEffect(() => {
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+                document.addEventListener('touchmove', handleMouseMove);
+                document.addEventListener('touchend', handleMouseUp);
+
+                return () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                    document.removeEventListener('touchmove', handleMouseMove);
+                    document.removeEventListener('touchend', handleMouseUp);
+                };
+            }, [mode]);
+
+            const handleDone = () => {
+                const formattedTime = `${hour}:${String(minute).padStart(2, '0')} ${ampm}`;
+                onTimeSelect(formattedTime);
+                onClose();
+            };
+
+            const hourDeg = (date.getHours() % 12 + date.getMinutes() / 60) * 30;
+            const minuteDeg = date.getMinutes() * 6;
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-80">
+                        <div className="flex justify-between items-center mb-4">
+                             <div className="text-2xl font-bold text-purple-500 flex items-center">
+                               <button onClick={() => setMode('hour')} className={`px-2 py-1 rounded ${mode === 'hour' ? 'bg-purple-200' : ''}`}>{String(hour).padStart(2, '0')}</button>
+                               <span>:</span>
+                               <button onClick={() => setMode('minute')} className={`px-2 py-1 rounded ${mode === 'minute' ? 'bg-purple-200' : ''}`}>{String(minute).padStart(2, '0')}</button>
+                            </div>
+                            <div className="flex flex-col">
+                                <button onClick={() => setDate(d => new Date(d.setHours(d.getHours() - 12)))} className={`px-3 py-1 text-sm rounded-t ${ampm === 'AM' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}>AM</button>
+                                <button onClick={() => setDate(d => new Date(d.setHours(d.getHours() + 12)))} className={`px-3 py-1 text-sm rounded-b ${ampm === 'PM' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}>PM</button>
+                            </div>
+                        </div>
+                        
+                        <div 
+                            ref={clockRef}
+                            onMouseDown={handleMouseDown}
+                            onTouchStart={handleMouseDown}
+                            className="relative w-64 h-64 mx-auto my-4 cursor-pointer"
+                        >
+                            <div className="w-full h-full border-4 border-gray-200 rounded-full">
+                                {Array.from({length: 12}, (_, i) => i + 1).map(n => {
+                                    const angle = n * 30 - 90;
+                                    const x = 128 + 104 * Math.cos(angle * Math.PI / 180) - 16;
+                                    const y = 128 + 104 * Math.sin(angle * Math.PI / 180) - 16;
+                                    return (
+                                        <div key={n} style={{top: y, left: x}} className="absolute w-8 h-8 flex items-center justify-center z-10">
+                                            {n}
+                                        </div>
+                                    );
+                                })}
+                                
+                                <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-purple-600 rounded-full -translate-x-1/2 -translate-y-1/2 z-20"></div>
+
+                                <div style={{ transform: `rotate(${hourDeg}deg)` }} className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-1.5 h-20 bg-blue-200" style={{transform: 'translateY(-40px)'}}>
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-blue-200"></div>
+                                    </div>
+                                </div>
+
+                                <div style={{ transform: `rotate(${minuteDeg}deg)` }} className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-1 h-28 bg-purple-500" style={{transform: 'translateY(-56px)'}}>
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-purple-500"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="flex justify-end space-x-4 mt-4">
+                            <button onClick={onClose} className="font-bold text-gray-600">Cancel</button>
+                            <button onClick={handleDone} className="font-bold text-purple-600">Done</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        const RecurringTasksPage = ({ tasks, categories, customIcons, onEdit, onCreateOneTime }) => {
+            const [showDatePicker, setShowDatePicker] = useState(false);
+            const [taskToSchedule, setTaskToSchedule] = useState(null);
+
+            const recurringTasks = tasks.filter(t => t.recurrence && !t.completed);
+            
+            const getCategoryName = (categoryId) => {
+                const category = categories.find(c => c.id === categoryId);
+                return category ? category.name : 'Uncategorized';
+            };
+
+            const getRecurrenceText = (recurrence) => {
+                const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                switch(recurrence.type) {
+                    case 'daily': return 'Repeats Daily';
+                    case 'weekly': return 'Repeats Weekly';
+                    case 'monthly': return 'Repeats Monthly';
+                    case 'specific-days': return `Repeats on ${recurrence.days.map(d => weekDays[d]).join(', ')}`;
+                    default: return 'No recurring schedule';
+                }
+            };
+
+            const handleScheduleClick = (task) => {
+                setTaskToSchedule(task);
+                setShowDatePicker(true);
+            };
+
+            const handleDateSelect = (date) => {
+                onCreateOneTime(taskToSchedule, date);
+                setShowDatePicker(false);
+                setTaskToSchedule(null);
+            };
+
+            return (
+                <>
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-bold mb-4 text-gray-700">Recurring Tasks</h2>
+                    <div className="space-y-3">
+                        {recurringTasks.length > 0 ? (
+                            recurringTasks.map(task => {
+                                const icon = customIcons.find(i => i.id === task.iconId);
+                                return (
+                                    <div key={task.id} className="p-3 bg-white rounded-lg shadow-md border-l-4 border-purple-500">
+                                        <div className="flex items-center">
+                                            <div className="mr-3 text-purple-500 w-6 h-6 flex-shrink-0">
+                                                {icon ? <img src={icon.src} alt="task icon" className="w-full h-full object-contain" /> : <TasksIcon />}
+                                            </div>
+                                            <div className="flex-grow">
+                                                <p className="text-lg">{task.content}</p>
+                                                <p className="text-sm text-gray-500">{getCategoryName(task.categoryId)}</p>
+                                                <p className="text-xs text-purple-500 mt-1">{getRecurrenceText(task.recurrence)}</p>
+                                            </div>
+                                            <button onClick={() => handleScheduleClick(task)} className="p-2 text-gray-500 hover:text-purple-500" title="Schedule One-Time Task">
+                                                <Calendar1Icon />
+                                            </button>
+                                            <button onClick={() => onEdit(task)} className="p-2 text-gray-500 hover:text-blue-500"><EditIcon /></button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <p className="text-gray-500 italic">You have no recurring tasks.</p>
+                        )}
+                    </div>
+                </div>
+                {showDatePicker && <DatePickerModal onDateSelect={handleDateSelect} onClose={() => setShowDatePicker(false)} />}
+                </>
+            );
+        };
+
+        const DatePickerModal = ({ onDateSelect, onClose }) => {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            return (
+                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                        <h3 className="text-lg font-bold text-gray-700 mb-4">Select a Date</h3>
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+                        />
+                        <div className="flex justify-end space-x-4 mt-4">
+                            <button onClick={onClose} className="font-bold text-gray-600">Cancel</button>
+                            <button onClick={() => onDateSelect(date)} className="font-bold text-purple-600">Add Task</button>
+                        </div>
+                    </div>
+                 </div>
+            );
+        };
+
+        const CalendarPage = ({ tasks, customIcons, setPage, onEdit }) => {
+            const [currentDate, setCurrentDate] = useState(new Date(2025, 6, 16));
+            const [selectedDateTasks, setSelectedDateTasks] = useState([]);
+            const [showModal, setShowModal] = useState(false);
+
+            const handleDayClick = (day) => {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const tasksForDay = tasks.filter(t => t.dueDate === dateStr);
+                if (tasksForDay.length > 0) {
+                    setSelectedDateTasks(tasksForDay);
+                    setShowModal(true);
+                }
+            };
+            
+            const handlePrevMonth = () => {
+                setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+            };
+
+            const handleNextMonth = () => {
+                setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+            };
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const monthName = currentDate.toLocaleString('default', { month: 'long' });
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const blanks = Array(firstDayOfMonth).fill(null);
+            const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+            
+            const today = new Date();
+            const isCurrentMonthAndYear = today.getFullYear() === year && today.getMonth() === month;
+
+            const tasksByDate = tasks.reduce((acc, task) => {
+                if (task.dueDate) {
+                    (acc[task.dueDate] = acc[task.dueDate] || []).push(task);
+                }
+                return acc;
+            }, {});
+
+            const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            return (
+                <>
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                        <button onClick={handlePrevMonth} className="p-2 rounded-full hover:bg-gray-100">
+                            <ChevronLeftIcon />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-700">{monthName} {year}</h2>
+                        <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-gray-100">
+                            <ChevronRightIcon />
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-2 text-center">
+                        {weekDays.map(day => <div key={day} className="font-bold text-gray-500 text-sm">{day}</div>)}
+                        {blanks.map((_, i) => <div key={`blank-${i}`} />)}
+                        {days.map(day => {
+                            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            const hasTasks = tasksByDate[dateStr];
+                            const isToday = isCurrentMonthAndYear && day === today.getDate();
+
+                            return (
+                                <div key={day} className="relative h-10 flex items-center justify-center">
+                                    <button
+                                        onClick={() => handleDayClick(day)}
+                                        className={`flex items-center justify-center h-8 w-8 rounded-full ${isToday ? 'bg-blue-200 text-blue-800' : 'hover:bg-gray-100'}`}
+                                    >
+                                        {day}
+                                    </button>
+                                    {hasTasks && <div className="absolute bottom-1 w-1.5 h-1.5 bg-purple-500 rounded-full pointer-events-none"></div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                {showModal && <DayTasksModal tasks={selectedDateTasks} customIcons={customIcons} date={formatDate(selectedDateTasks[0].dueDate)} onClose={() => setShowModal(false)} onEdit={onEdit} />}
+                </>
+            );
+        };
+
+        const DayTasksModal = ({ tasks, customIcons, date, onClose, onEdit }) => {
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-gray-700">{date}</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-800">&times;</button>
+                        </div>
+                        <div className="space-y-3 max-h-80 overflow-y-auto">
+                            {tasks.map(task => {
+                                const icon = customIcons.find(i => i.id === task.iconId);
+                                return (
+                                    <div key={task.id} className="flex items-center p-2 bg-gray-50 rounded-lg">
+                                        <div className="mr-3 text-purple-500 w-6 h-6 flex-shrink-0">
+                                            {icon ? <img src={icon.src} alt="task icon" className="w-full h-full object-contain" /> : <TasksIcon />}
+                                        </div>
+                                        <div className="flex-grow">
+                                            <p className="font-semibold">{task.content}</p>
+                                            {task.time && <p className="text-sm text-gray-500">{task.time}</p>}
+                                        </div>
+                                        <button onClick={() => { onClose(); onEdit(task); }} className="p-2 text-gray-500 hover:text-blue-500"><EditIcon /></button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ManageCustomIconsPage = ({ setPage, customIcons, setCustomIcons }) => {
+            const fileInputRef = useRef(null);
+            const [iconName, setIconName] = useState('');
+            const [iconFile, setIconFile] = useState(null);
+
+            const handleFileSelect = (event) => {
+                const file = event.target.files[0];
+                if(file) {
+                    setIconFile(file);
+                }
+            };
+
+            const handleIconUpload = () => {
+                if (iconFile && iconName.trim()) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const newIcon = { id: generateId(), name: iconName.trim(), src: e.target.result };
+                        setCustomIcons(prev => [...prev, newIcon]);
+                        setIconName('');
+                        setIconFile(null);
+                        fileInputRef.current.value = null; // Reset file input
+                    };
+                    reader.readAsDataURL(iconFile);
+                } else if (!iconName.trim()) {
+                    alert('Please enter a name for the icon.');
+                } else if (!iconFile) {
+                    alert('Please select an icon file to upload.');
+                }
+            };
+
+            const deleteIcon = (id) => {
+                setCustomIcons(prev => prev.filter(icon => icon.id !== id));
+            };
+
+            return (
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <div className="flex items-center mb-4">
+                        <button onClick={() => setPage('settings')} className="p-2 rounded-full hover:bg-gray-100 mr-2">
+                           <ChevronLeftIcon />
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-700">Manage Custom Icons</h2>
+                    </div>
+                    <div className="space-y-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                         <input
+                            type="text"
+                            value={iconName}
+                            onChange={(e) => setIconName(e.target.value)}
+                            placeholder="Icon Name"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                        />
+                        <input
+                            type="file"
+                            accept="image/png, image/svg+xml"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                        />
+                        <button
+                            onClick={handleIconUpload}
+                            className="w-full bg-purple-500 text-white py-2 rounded-md"
+                        >
+                            Add Icon
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                        {customIcons.map(icon => (
+                            <div key={icon.id} className="relative group">
+                                <div className="p-2 bg-gray-50 rounded-lg flex flex-col items-center justify-center">
+                                    <img src={icon.src} alt={icon.name} className="w-10 h-10 object-contain" />
+                                    <span className="text-xs mt-1 text-gray-600 truncate w-full">{icon.name}</span>
+                                </div>
+                                <button
+                                    onClick={() => deleteIcon(icon.id)}
+                                    className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+        
+        const ManageCategoriesPage = ({ setPage, categories, setCategories, customIcons }) => {
+            const [editingCategory, setEditingCategory] = useState(null);
+            const [newCategoryName, setNewCategoryName] = useState('');
+            const [newCategoryIconId, setNewCategoryIconId] = useState(null);
+            const [showIconPicker, setShowIconPicker] = useState(false);
+
+            const handleAddCategory = (e) => {
+                e.preventDefault();
+                if (!newCategoryName.trim()) return;
+                const newCategory = { id: generateId(), name: newCategoryName.trim(), iconId: newCategoryIconId };
+                setCategories([...categories, newCategory]);
+                setNewCategoryName('');
+                setNewCategoryIconId(null);
+            };
+
+            const handleUpdateCategory = (id, newName, newIconId) => {
+                setCategories(categories.map(cat => cat.id === id ? { ...cat, name: newName, iconId: newIconId } : cat));
+                setEditingCategory(null);
+            };
+
+            const handleDeleteCategory = (id) => {
+                if (window.confirm('Are you sure you want to delete this category? This cannot be undone.')) {
+                    setCategories(categories.filter(cat => cat.id !== id));
+                }
+            };
+            
+            const moveCategory = (index, direction) => {
+                const newCategories = [...categories];
+                const [movedCategory] = newCategories.splice(index, 1);
+                newCategories.splice(index + direction, 0, movedCategory);
+                setCategories(newCategories);
+            };
+
+            const newIcon = customIcons.find(i => i.id === newCategoryIconId);
+
+            return (
+                <>
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <div className="flex items-center mb-4">
+                        <button onClick={() => setPage('settings')} className="p-2 rounded-full hover:bg-gray-100 mr-2">
+                           <ChevronLeftIcon />
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-700">Manage Categories</h2>
+                    </div>
+                    
+                    <form onSubmit={handleAddCategory} className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
+                        <h3 className="text-lg font-medium">Add New Category</h3>
+                        <input
+                            type="text"
+                            value={newCategoryName}
+                            onChange={e => setNewCategoryName(e.target.value)}
+                            placeholder="Category Name"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                        />
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                             <button
+                                type="button"
+                                onClick={() => setShowIconPicker(true)}
+                                className="w-full p-2 border border-gray-300 rounded-md bg-white flex items-center"
+                            >
+                                {newIcon ? (
+                                    <img src={newIcon.src} className="w-6 h-6 mr-2" />
+                                ) : (
+                                    <TasksIcon />
+                                )}
+                                <span>{newIcon ? newIcon.name : 'Choose Icon'}</span>
+                            </button>
+                        </div>
+                        <button type="submit" className="w-full bg-purple-500 text-white py-2 rounded-md">Add Category</button>
+                    </form>
+
+                    <div className="space-y-2">
+                        {categories.map((cat, index) => {
+                            const icon = customIcons.find(i => i.id === cat.iconId);
+                            return (
+                                <div key={cat.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center">
+                                        <div className="mr-3 text-purple-500 w-6 h-6 flex-shrink-0">
+                                            {icon ? <img src={icon.src} alt="icon" className="w-full h-full object-contain"/> : <TasksIcon />}
+                                        </div>
+                                        <span>{cat.name}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                        <button onClick={() => moveCategory(index, -1)} disabled={index === 0} className="p-1 disabled:opacity-25"><ArrowUpIcon /></button>
+                                        <button onClick={() => moveCategory(index, 1)} disabled={index === categories.length - 1} className="p-1 disabled:opacity-25"><ArrowDownIcon /></button>
+                                        <button onClick={() => onEdit(cat)} className="p-1"><EditIcon /></button>
+                                        <button onClick={() => handleDeleteCategory(cat.id)} className="p-1 text-red-500"><TrashIcon /></button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                {showIconPicker && <IconPickerModal customIcons={customIcons} onSelect={setNewCategoryIconId} onClose={() => setShowIconPicker(false)} />}
+                </>
+            );
+        };
+        
+        const CategoryEditForm = ({ category, onSave, onCancel, customIcons }) => {
+            const [name, setName] = useState(category.name);
+            const [iconId, setIconId] = useState(category.iconId);
+            const [showIconPicker, setShowIconPicker] = useState(false);
+
+            const handleSave = () => {
+                onSave(category.id, name, iconId);
+            };
+
+            const currentIcon = customIcons.find(i => i.id === iconId);
+
+            return (
+                <>
+                <div className="w-full space-y-4">
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        className="w-full px-2 py-1 border rounded-md"
+                    />
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                         <button
+                            type="button"
+                            onClick={() => setShowIconPicker(true)}
+                            className="w-full p-2 border border-gray-300 rounded-md bg-white flex items-center"
+                        >
+                            {currentIcon ? (
+                                <img src={currentIcon.src} className="w-6 h-6 mr-2" />
+                            ) : (
+                                <TasksIcon />
+                            )}
+                            <span>{currentIcon ? currentIcon.name : 'Choose Icon'}</span>
+                        </button>
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                        <button onClick={onCancel} className="text-gray-600">Cancel</button>
+                        <button onClick={handleSave} className="bg-green-500 text-white px-3 py-1 rounded-md">Save</button>
+                    </div>
+                </div>
+                {showIconPicker && <IconPickerModal customIcons={customIcons} onSelect={setIconId} onClose={() => setShowIconPicker(false)} />}
+                </>
+            );
+        };
+
+        const SavedAttributionsPage = ({ setPage, attributions, setAttributions }) => {
+            const deleteAttribution = (indexToDelete) => {
+                setAttributions(prev => prev.filter((_, index) => index !== indexToDelete));
+            };
+
+            return (
+                 <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <div className="flex items-center mb-4">
+                        <button onClick={() => setPage('settings')} className="p-2 rounded-full hover:bg-gray-100 mr-2">
+                           <ChevronLeftIcon />
+                        </button>
+                        <h2 className="text-2xl font-bold text-gray-700">Saved Attributions</h2>
+                    </div>
+                    <div className="space-y-3">
+                        {attributions.length > 0 ? (
+                            attributions.map((attr, index) => (
+                                <div key={index} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg">
+                                    <p className="text-gray-700 whitespace-pre-wrap break-words mr-2">{attr}</p>
+                                    <button onClick={() => deleteAttribution(index)} className="p-1 text-red-500 flex-shrink-0"><TrashIcon /></button>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-gray-500 italic">No attributions saved yet.</p>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsPage = ({ setPage, onLogout, attributions, setAttributions }) => {
+            const [permissionStatus, setPermissionStatus] = useState(Notification.permission);
+            const [attributionText, setAttributionText] = useState('');
+
+            useEffect(() => {
+                setPermissionStatus(Notification.permission);
+            }, []);
+
+            const requestNotificationPermission = async () => {
+                if (!('Notification' in window)) {
+                    alert('This browser does not support desktop notification');
+                    return;
+                }
+                
+                if (Notification.permission === 'granted') {
+                    alert('Notifications are already enabled!');
+                    return;
+                }
+
+                const permission = await Notification.requestPermission();
+                setPermissionStatus(permission);
+
+                if (permission === 'granted') {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification('Pixel Plan', {
+                            body: 'Notifications have been enabled!',
+                            icon: 'icon-192x192.png',
+                            vibrate: [200, 100, 200],
+                        });
+                    });
+                }
+            };
+            
+            const handleSaveAttribution = () => {
+                if (!attributionText.trim()) return;
+                setAttributions(prev => [...prev, attributionText.trim()]);
+                setAttributionText('');
+            };
+
+            return (
+                <div className="p-4 bg-white rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Settings</h2>
+                    <div className="space-y-4">
+                        <div className="pt-4 border-t border-gray-200">
+                            <h3 className="text-lg font-medium mb-2">App Settings</h3>
+                             <button
+                                onClick={requestNotificationPermission}
+                                disabled={permissionStatus === 'denied'}
+                                className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:bg-gray-200 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <span className="font-medium text-gray-700">Notifications</span>
+                                <BellIcon colorClass={permissionStatus === 'granted' ? 'text-green-500' : 'text-gray-400'} />
+                            </button>
+                            {permissionStatus === 'denied' && (
+                                <p className="text-red-500 text-sm mt-2">
+                                    You have blocked notifications. You'll need to enable them in your browser settings.
+                                </p>
+                            )}
+                             <button
+                                onClick={() => setPage('manage-categories')}
+                                className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 mt-2 transition-colors"
+                            >
+                                <span className="font-medium text-gray-700">Manage Categories</span>
+                                <ChevronRightIcon />
+                            </button>
+                            <button
+                                onClick={() => setPage('manage-icons')}
+                                className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 mt-2 transition-colors"
+                            >
+                                <span className="font-medium text-gray-700">Manage Custom Icons</span>
+                                <ChevronRightIcon />
+                            </button>
+                            <button
+                                onClick={onLogout}
+                                className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 mt-2 transition-colors text-red-500"
+                            >
+                                <span className="font-medium">Logout</span>
+                            </button>
+                        </div>
+                        <div className="pt-4 border-t border-gray-200">
+                            <h3 className="text-lg font-medium mb-2">Attributions</h3>
+                            <textarea
+                                value={attributionText}
+                                onChange={(e) => setAttributionText(e.target.value)}
+                                placeholder="Add attribution text here..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                                rows="3"
+                            ></textarea>
+                            <button onClick={handleSaveAttribution} className="w-full bg-purple-500 text-white py-2 mt-2 rounded-md">Save Attribution</button>
+                            <button onClick={() => setPage('saved-attributions')} className="w-full bg-gray-200 text-gray-700 py-2 mt-2 rounded-md">View Saved Attributions</button>
+                        </div>
+                         <div className="pt-4 border-t border-gray-200">
+                            <h3 className="text-lg font-medium mb-2">PWA Status</h3>
+                            <button 
+                                onClick={() => {
+                                    alert("To install, use the 'Add to Home Screen' option in your browser menu.");
+                                }}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+                            >
+                                Install App
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const BottomNav = ({ currentPage, setPage, setEditingTask }) => {
+            const navItems = [
+                { name: 'tasks', icon: <TasksIcon />, label: 'Tasks' },
+                { name: 'recurring', icon: <RecurringIcon />, label: 'Recurring' },
+                { name: 'calendar', icon: <CalendarDaysIcon />, label: 'Calendar' },
+                { name: 'settings', icon: <SettingsIcon />, label: 'Settings' }
+            ];
+
+            const NavButton = ({ item }) => (
+                <button
+                    onClick={() => setPage(item.name)}
+                    className={`flex flex-col items-center justify-center w-full h-full text-white transition-colors duration-200 ${currentPage === item.name ? 'bg-gray-700/50' : ''}`}
+                >
+                    {item.icon}
+                    <span className="text-xs font-medium">{item.label}</span>
+                </button>
+            );
+
+            return (
+                <nav className="fixed bottom-0 left-0 right-0 h-20 bg-purple-500 shadow-lg">
+                    <div className="grid grid-cols-5 h-full items-center max-w-lg mx-auto">
+                        <NavButton item={navItems[0]} />
+                        <NavButton item={navItems[1]} />
+                        
+                        <div className="relative flex justify-center">
+                            <button
+                                onClick={() => {
+                                    setEditingTask(null);
+                                    setPage('add');
+                                }}
+                                className="absolute bottom-4 w-16 h-16 bg-blue-200 rounded-full shadow-lg flex items-center justify-center text-white hover:bg-blue-300 transition-all transform hover:scale-110"
+                                aria-label="Add New Task"
+                            >
+                                <PlusIcon />
+                            </button>
+                        </div>
+
+                        <NavButton item={navItems[2]} />
+                        <NavButton item={navItems[3]} />
+                    </div>
+                </nav>
+            );
+        };
+
+        const Toast = ({ message, isVisible }) => {
+            if (!isVisible) return null;
+
+            return (
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg transition-opacity duration-300 animate-fade-in-out">
+                    {message}
+                </div>
+            );
+        };
+
+        // Render the App to the DOM
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
