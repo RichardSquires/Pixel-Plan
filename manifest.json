@@ -1,12 +1,14 @@
 {
-  "name": "Pixel Plan",
+  "name": "Pixel Plan - Task Manager",
   "short_name": "Pixel Plan",
   "description": "A beautiful task management app with custom icons and scheduling",
-  "start_url": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#C7B9FF",
   "orientation": "portrait",
+  "id": "pixel-plan-task-manager",
   "icons": [
     {
       "src": "icon-192x192.png",
@@ -15,7 +17,7 @@
       "purpose": "any"
     },
     {
-      "src": "icon-512x512.png", 
+      "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
@@ -27,12 +29,28 @@
       "purpose": "maskable"
     },
     {
-      "src": "icon-512x512.png", 
+      "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
-  "lang": "en"
+  "lang": "en",
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
 }
