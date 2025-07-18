@@ -573,38 +573,38 @@
           return hash.toString();
         };
 
-        useEffect(() => {
-          const storedHash = localStorage.getItem("pixel-plan-password");
-          const sessionActive =
-            sessionStorage.getItem("pixel-plan-session") === "true";
-          setPasswordHash(storedHash);
-          if (storedHash && sessionActive) {
-            setIsAuthenticated(true);
-          }
-        }, []);
+      useEffect(() => {
+        const storedHash = localStorage.getItem("pixel-plan-password");
+        const sessionActive =
+          localStorage.getItem("pixel-plan-session") === "true"; // Changed from sessionStorage
+        setPasswordHash(storedHash);
+        if (storedHash && sessionActive) {
+        setIsAuthenticated(true);
+  }
+}, []);
 
         const handleLogin = (password) => {
-          if (simpleHash(password) === passwordHash) {
-            sessionStorage.setItem("pixel-plan-session", "true");
-            setIsAuthenticated(true);
-            return true;
-          }
-          return false;
-        };
+        if (simpleHash(password) === passwordHash) {
+        localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+        setIsAuthenticated(true);
+        return true;
+      }
+    return false;
+  };
 
         const handlePasswordSetup = (password) => {
-          const newHash = simpleHash(password);
-          localStorage.setItem("pixel-plan-password", newHash);
-          sessionStorage.setItem("pixel-plan-session", "true");
-          setPasswordHash(newHash);
-          setIsAuthenticated(true);
-        };
+        const newHash = simpleHash(password);
+        localStorage.setItem("pixel-plan-password", newHash);
+        localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+        setPasswordHash(newHash);
+        setIsAuthenticated(true);
+      };
 
         const handleLogout = () => {
-          sessionStorage.removeItem("pixel-plan-session");
-          setIsAuthenticated(false);
-          setPage("tasks");
-        };
+        localStorage.removeItem("pixel-plan-session"); // Changed from sessionStorage
+        setIsAuthenticated(false);
+        setPage("tasks");
+      };
 
         useEffect(() => {
           localStorage.setItem("pixel-plan-tasks", JSON.stringify(tasks));
