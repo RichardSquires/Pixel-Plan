@@ -1739,7 +1739,8 @@
             const NavButton = ({ item }) => (
                 <button
                     onClick={() => setPage(item.name)}
-                    className={`flex flex-col items-center justify-center w-full h-full text-white transition-colors duration-200 ${currentPage === item.name ? 'bg-gray-700/50' : ''}`}
+                    // UPDATED: Changed the class to modify text color on selection instead of background
+                    className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${currentPage === item.name ? 'text-gray-200' : 'text-white'}`}
                 >
                     {item.icon}
                     <span className="text-xs font-medium">{item.label}</span>
@@ -1771,7 +1772,7 @@
                 </nav>
             );
         };
-
+        
         const Toast = ({ message, isVisible }) => {
             if (!isVisible) return null;
 
