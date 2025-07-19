@@ -3091,9 +3091,21 @@
           Notification.permission,
         );
         const [attributionText, setAttributionText] = useState("");
+        const [showImportBox, setShowImportBox] = useState(false);
+        const [importData, setImportData] = useState("");
+        const [lastBackupDate, setLastBackupDate] = useState(null);
 
         useEffect(() => {
           setPermissionStatus(Notification.permission);
+          // Check for last backup timestamp
+          const backupKeys = Object.keys(localStorage).filter((k) =>
+            k.startsWith("backup-tasks-"),
+          );
+          if (backupKeys.length > 0) {
+            const latestKey = backupKeys.sort().pop();
+            const timestamp = latestKey.split("-").pop();
+            setLastBackupDate(new Date(parseInt(timestamp)));
+          }
         }, []);
 
         const requestNotificationPermission = async () => {
