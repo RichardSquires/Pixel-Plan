@@ -3253,6 +3253,82 @@
                   <span className="font-medium">Logout</span>
                 </button>
               </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <h3 className="text-lg font-medium mb-2">
+                  Data Backup & Restore
+                </h3>
+                {lastBackupDate && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    Last backup: {lastBackupDate.toLocaleString()}
+                  </p>
+                )}
+                <div className="space-y-2">
+                  <button
+                    onClick={handleExportData}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    📁 Export All Data
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportBox(!showImportBox)}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    📂 Import Data
+                  </button>
+
+                  {showImportBox && (
+                    <div className="mt-4 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                      <h4 className="font-medium mb-2">Import Backup Data</h4>
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileImport}
+                          className="w-full text-sm"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Or paste JSON data below:
+                        </p>
+                        <textarea
+                          value={importData}
+                          onChange={(e) => setImportData(e.target.value)}
+                          placeholder="Paste your exported JSON data here..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                          rows="4"
+                        ></textarea>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={handleImportData}
+                            disabled={!importData.trim()}
+                            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2 rounded-md transition-colors"
+                          >
+                            Import
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowImportBox(false);
+                              setImportData("");
+                            }}
+                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-md transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    💾 <strong>Tip:</strong> Your data is automatically backed
+                    up every 30 seconds to prevent loss during cache clears.
+                    Export regularly for extra safety!
+                  </p>
+                </div>
+              </div>
               <div className="pt-4 border-t border-gray-200">
                 <h3 className="text-lg font-medium mb-2">Attributions</h3>
                 <textarea
