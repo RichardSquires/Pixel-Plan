@@ -824,25 +824,53 @@
         // Auto-save data to IndexedDB when state changes
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setTasks(tasks);
+            console.log("Saving tasks to IndexedDB:", tasks);
+            Storage.setTasks(tasks)
+              .then((result) => {
+                console.log("Tasks saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save tasks:", error);
+              });
           }
         }, [tasks, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setCategories(categories);
+            console.log("Saving categories to IndexedDB:", categories);
+            Storage.setCategories(categories)
+              .then((result) => {
+                console.log("Categories saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save categories:", error);
+              });
           }
         }, [categories, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setCustomIcons(customIcons);
+            console.log("Saving custom icons to IndexedDB:", customIcons);
+            Storage.setCustomIcons(customIcons)
+              .then((result) => {
+                console.log("Custom icons saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save custom icons:", error);
+              });
           }
         }, [customIcons, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setAttributions(attributions);
+            console.log("Saving attributions to IndexedDB:", attributions);
+            Storage.setAttributions(attributions)
+              .then((result) => {
+                console.log("Attributions saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save attributions:", error);
+              });
           }
         }, [attributions, dataLoaded]);
 
