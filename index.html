@@ -536,18 +536,38 @@
       // ... other states
 
       // Fetch all data from IndexedDB on component mount
-      useEffect(() => {
-      const loadData = async () => {
-        const allTasks = await db.tasks.toArray();
-        const allCategories = await db.categories.toArray();
-      // ... fetch other data as needed
+useEffect(() => {
+  const initializeAndLoadData = async () => {
+    try {
+      // Check if the database is empty on the first run
+      const taskCount = await db.tasks.count();
+      if (taskCount === 0) {
+        console.log("Database is empty, populating with initial data...");
+        // Use bulkAdd to efficiently add the initial data
+        await db.tasks.bulkAdd(initialTasks);
+        await db.categories.bulkAdd(defaultCategories);
+        // You can also populate other tables here if needed
+      }
 
-      setTasks(allTasks.length > 0 ? allTasks : initialTasks);
-      setCategories(allCategories.length > 0 ? allCategories : defaultCategories);
-    };
+      // Now, load all data from the database
+      const allTasks = await db.tasks.toArray();
+      const allCategories = await db.categories.toArray();
+      const allCustomIcons = await db.customIcons.toArray();
+      const allAttributions = await db.attributions.toArray();
 
-    loadData();
-  }, []);
+      setTasks(allTasks);
+      setCategories(allCategories);
+      setCustomIcons(allCustomIcons);
+      setAttributions(allAttributions.map(a => a.text)); // Assuming attributions are stored as objects
+
+    } catch (error) {
+      console.error("Failed to initialize or load data:", error);
+      // You could show an error message to the user here
+    }
+  };
+
+  initializeAndLoadData();
+}, []);
         const [categories, setCategories] = useState(() => {
           try {
             const savedCategories = localStorage.getItem(
