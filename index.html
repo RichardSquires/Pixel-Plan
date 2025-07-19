@@ -704,50 +704,16 @@
       // --- Main App Component ---
       const App = () => {
         const [page, setPage] = useState("tasks");
-        const [tasks, setTasks] = useState(() => {
-          try {
-            const savedTasks = localStorage.getItem("pixel-plan-tasks");
-            return savedTasks ? JSON.parse(savedTasks) : initialTasks;
-          } catch (error) {
-            console.error("Error parsing tasks from localStorage", error);
-            return initialTasks;
-          }
-        });
-        const [categories, setCategories] = useState(() => {
-          try {
-            const savedCategories = localStorage.getItem(
-              "pixel-plan-categories",
-            );
-            return savedCategories
-              ? JSON.parse(savedCategories)
-              : defaultCategories;
-          } catch (error) {
-            return defaultCategories;
-          }
-        });
-        const [customIcons, setCustomIcons] = useState(() => {
-          try {
-            const savedIcons = localStorage.getItem("pixel-plan-custom-icons");
-            return savedIcons ? JSON.parse(savedIcons) : [];
-          } catch (error) {
-            return [];
-          }
-        });
-        const [attributions, setAttributions] = useState(() => {
-          try {
-            const savedAttributions = localStorage.getItem(
-              "pixel-plan-attributions",
-            );
-            return savedAttributions ? JSON.parse(savedAttributions) : [];
-          } catch (error) {
-            return [];
-          }
-        });
+        const [tasks, setTasks] = useState(initialTasks);
+        const [categories, setCategories] = useState(defaultCategories);
+        const [customIcons, setCustomIcons] = useState([]);
+        const [attributions, setAttributions] = useState([]);
         const [showToast, setShowToast] = useState(false);
         const [toastMessage, setToastMessage] = useState("");
         const [editingTask, setEditingTask] = useState(null);
         const [isAuthenticated, setIsAuthenticated] = useState(false);
         const [passwordHash, setPasswordHash] = useState(null);
+        const [dataLoaded, setDataLoaded] = useState(false);
 
         // Simple hashing function (for demonstration only - NOT for production)
         const simpleHash = (str) => {
