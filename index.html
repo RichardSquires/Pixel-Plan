@@ -90,7 +90,6 @@
         },
       };
     </script>
-    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
   </head>
   <body>
     <div id="root"></div>
@@ -101,19 +100,6 @@
 
     <!-- Embedded React Application -->
     <script type="text/babel">
-      // --- Database Setup (using Dexie.js) ---
-      const db = new Dexie("PixelPlanDB");
-
-      // Define the database schema.
-      // '++id' means auto-incrementing primary key.
-      // '&' means unique index.
-      // '*' means multi-entry index.
-      db.version(1).stores({
-        tasks: '++id, content, categoryId, dueDate, completed',
-        categories: 'id, name',
-        customIcons: 'id, name',
-      attributions: '++id' // Simple auto-incrementing store
-    });
       const { useState, useEffect, useRef } = React;
 
       // --- Helper Functions & Data ---
@@ -529,45 +515,16 @@
 
       // --- Main App Component ---
       const App = () => {
-      const [page, setPage] = useState("tasks");
-      // Start with empty states
-      const [tasks, setTasks] = useState([]);
-      const [categories, setCategories] = useState([]);
-      // ... other states
-
-      // Fetch all data from IndexedDB on component mount
-useEffect(() => {
-  const initializeAndLoadData = async () => {
-    try {
-      // Check if the database is empty on the first run
-      const taskCount = await db.tasks.count();
-      if (taskCount === 0) {
-        console.log("Database is empty, populating with initial data...");
-        // Use bulkAdd to efficiently add the initial data
-        await db.tasks.bulkAdd(initialTasks);
-        await db.categories.bulkAdd(defaultCategories);
-        // You can also populate other tables here if needed
-      }
-
-      // Now, load all data from the database
-      const allTasks = await db.tasks.toArray();
-      const allCategories = await db.categories.toArray();
-      const allCustomIcons = await db.customIcons.toArray();
-      const allAttributions = await db.attributions.toArray();
-
-      setTasks(allTasks);
-      setCategories(allCategories);
-      setCustomIcons(allCustomIcons);
-      setAttributions(allAttributions.map(a => a.text)); // Assuming attributions are stored as objects
-
-    } catch (error) {
-      console.error("Failed to initialize or load data:", error);
-      // You could show an error message to the user here
-    }
-  };
-
-  initializeAndLoadData();
-}, []);
+        const [page, setPage] = useState("tasks");
+        const [tasks, setTasks] = useState(() => {
+          try {
+            const savedTasks = localStorage.getItem("pixel-plan-tasks");
+            return savedTasks ? JSON.parse(savedTasks) : initialTasks;
+          } catch (error) {
+            console.error("Error parsing tasks from localStorage", error);
+            return initialTasks;
+          }
+        });
         const [categories, setCategories] = useState(() => {
           try {
             const savedCategories = localStorage.getItem(
@@ -679,27 +636,22 @@ useEffect(() => {
           setTimeout(() => setShowToast(false), 3000);
         };
 
-const handleAddTask = async (task) => {
-  // The 'add' method returns the new ID
-  const newId = await db.tasks.add(task);
-  // Update state with the newly added task, including its new ID
-  setTasks([{ ...task, id: newId }, ...tasks]);
-  triggerToast("Task added successfully!");
-  setPage("tasks");
-};
+        const handleAddTask = (task) => {
+          setTasks([task, ...tasks]);
+          triggerToast("Task added successfully!");
+          setPage("tasks");
+        };
 
-const handleUpdateTask = async (updatedTask) => {
-  // 'put' updates an existing item or adds it if it doesn't exist
-  await db.tasks.put(updatedTask);
-  setTasks(
-    tasks.map((task) =>
-      task.id === updatedTask.id ? updatedTask : task,
-    ),
-  );
-  triggerToast("Task updated successfully!");
-  setEditingTask(null);
-  setPage("tasks");
-};
+        const handleUpdateTask = (updatedTask) => {
+          setTasks(
+            tasks.map((task) =>
+              task.id === updatedTask.id ? updatedTask : task,
+            ),
+          );
+          triggerToast("Task updated successfully!");
+          setEditingTask(null);
+          setPage("tasks");
+        };
 
         const toggleTaskCompletion = (taskId) => {
           setTasks(
@@ -744,12 +696,10 @@ const handleUpdateTask = async (updatedTask) => {
           triggerToast("Task postponed to tomorrow!");
         };
 
-const handleDeleteTask = async (taskId) => {
-  // 'delete' removes an item by its primary key
-  await db.tasks.delete(taskId);
-  setTasks(tasks.filter((task) => task.id !== taskId));
-  triggerToast("Task deleted.");
-};
+        const handleDeleteTask = (taskId) => {
+          setTasks(tasks.filter((task) => task.id !== taskId));
+          triggerToast("Task deleted.");
+        };
 
         const startEditing = (task) => {
           setEditingTask(task);
