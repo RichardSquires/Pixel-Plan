@@ -3139,6 +3139,65 @@
           setAttributionText("");
         };
 
+        const handleExportData = async () => {
+          try {
+            const exportData = await Storage.exportAllData();
+            if (exportData) {
+              const blob = new Blob([exportData], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `pixel-plan-backup-${new Date().toISOString().split("T")[0]}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              alert("Data exported successfully!");
+            } else {
+              alert("Failed to export data");
+            }
+          } catch (error) {
+            console.error("Export failed:", error);
+            alert("Export failed: " + error.message);
+          }
+        };
+
+        const handleImportData = async () => {
+          try {
+            if (!importData.trim()) {
+              alert("Please paste your backup data first");
+              return;
+            }
+
+            const success = await Storage.importAllData(importData);
+            if (success) {
+              alert(
+                "Data imported successfully! Please refresh the page to see changes.",
+              );
+              setImportData("");
+              setShowImportBox(false);
+              // Optionally trigger a page reload
+              window.location.reload();
+            } else {
+              alert("Failed to import data. Please check the format.");
+            }
+          } catch (error) {
+            console.error("Import failed:", error);
+            alert("Import failed: " + error.message);
+          }
+        };
+
+        const handleFileImport = (event) => {
+          const file = event.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              setImportData(e.target.result);
+            };
+            reader.readAsText(file);
+          }
+        };
+
         return (
           <div className="p-4 bg-white rounded-lg shadow-lg">
             <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">
