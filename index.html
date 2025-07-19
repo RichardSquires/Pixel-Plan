@@ -118,6 +118,194 @@
         return date.toLocaleDateString("en-US", options);
       };
 
+      // --- IndexedDB Utility Functions ---
+      const DB_NAME = "PixelPlanDB";
+      const DB_VERSION = 1;
+      const STORES = {
+        TASKS: "tasks",
+        CATEGORIES: "categories",
+        CUSTOM_ICONS: "customIcons",
+        ATTRIBUTIONS: "attributions",
+        SETTINGS: "settings",
+      };
+
+      // Initialize IndexedDB
+      const initDB = () => {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+
+            // Create object stores
+            Object.values(STORES).forEach((storeName) => {
+              if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName, { keyPath: "id" });
+              }
+            });
+          };
+        });
+      };
+
+      // Generic function to save data to IndexedDB
+      const saveToIDB = async (storeName, data) => {
+        try {
+          const db = await initDB();
+          const transaction = db.transaction([storeName], "readwrite");
+          const store = transaction.objectStore(storeName);
+
+          await store.put({ id: "data", value: data });
+          return true;
+        } catch (error) {
+          console.error(`Error saving to ${storeName}:`, error);
+          return false;
+        }
+      };
+
+      // Generic function to load data from IndexedDB
+      const loadFromIDB = async (storeName, defaultValue = null) => {
+        try {
+          const db = await initDB();
+          const transaction = db.transaction([storeName], "readonly");
+          const store = transaction.objectStore(storeName);
+
+          return new Promise((resolve, reject) => {
+            const request = store.get("data");
+            request.onsuccess = () => {
+              const result = request.result;
+              resolve(result ? result.value : defaultValue);
+            };
+            request.onerror = () => reject(request.error);
+          });
+        } catch (error) {
+          console.error(`Error loading from ${storeName}:`, error);
+          return defaultValue;
+        }
+      };
+
+      // Migrate data from localStorage to IndexedDB
+      const migrateFromLocalStorage = async () => {
+        try {
+          const migrations = [
+            {
+              key: "pixel-plan-tasks",
+              store: STORES.TASKS,
+              defaultValue: [],
+            },
+            {
+              key: "pixel-plan-categories",
+              store: STORES.CATEGORIES,
+              defaultValue: [],
+            },
+            {
+              key: "pixel-plan-custom-icons",
+              store: STORES.CUSTOM_ICONS,
+              defaultValue: [],
+            },
+            {
+              key: "pixel-plan-attributions",
+              store: STORES.ATTRIBUTIONS,
+              defaultValue: [],
+            },
+            {
+              key: "pixel-plan-password",
+              store: STORES.SETTINGS,
+              defaultValue: null,
+              dataKey: "password",
+            },
+            {
+              key: "pixel-plan-session",
+              store: STORES.SETTINGS,
+              defaultValue: null,
+              dataKey: "session",
+            },
+          ];
+
+          for (const migration of migrations) {
+            const localData = localStorage.getItem(migration.key);
+            if (localData) {
+              let parsedData;
+              try {
+                parsedData = JSON.parse(localData);
+              } catch {
+                parsedData = localData; // For non-JSON data like session strings
+              }
+
+              if (migration.dataKey) {
+                // For settings, we need to merge with existing data
+                const existingSettings = await loadFromIDB(migration.store, {});
+                existingSettings[migration.dataKey] = parsedData;
+                await saveToIDB(migration.store, existingSettings);
+              } else {
+                await saveToIDB(migration.store, parsedData);
+              }
+
+              // Remove from localStorage after successful migration
+              localStorage.removeItem(migration.key);
+            }
+          }
+
+          console.log(
+            "Data migration from localStorage to IndexedDB completed",
+          );
+        } catch (error) {
+          console.error("Error during data migration:", error);
+        }
+      };
+
+      // Enhanced storage functions
+      const Storage = {
+        async getTasks() {
+          return await loadFromIDB(STORES.TASKS, []);
+        },
+
+        async setTasks(tasks) {
+          return await saveToIDB(STORES.TASKS, tasks);
+        },
+
+        async getCategories() {
+          return await loadFromIDB(STORES.CATEGORIES, []);
+        },
+
+        async setCategories(categories) {
+          return await saveToIDB(STORES.CATEGORIES, categories);
+        },
+
+        async getCustomIcons() {
+          return await loadFromIDB(STORES.CUSTOM_ICONS, []);
+        },
+
+        async setCustomIcons(icons) {
+          return await saveToIDB(STORES.CUSTOM_ICONS, icons);
+        },
+
+        async getAttributions() {
+          return await loadFromIDB(STORES.ATTRIBUTIONS, []);
+        },
+
+        async setAttributions(attributions) {
+          return await saveToIDB(STORES.ATTRIBUTIONS, attributions);
+        },
+
+        async getSettings() {
+          return await loadFromIDB(STORES.SETTINGS, {});
+        },
+
+        async setSetting(key, value) {
+          const settings = await this.getSettings();
+          settings[key] = value;
+          return await saveToIDB(STORES.SETTINGS, settings);
+        },
+
+        async getSetting(key, defaultValue = null) {
+          const settings = await this.getSettings();
+          return settings[key] !== undefined ? settings[key] : defaultValue;
+        },
+      };
+
       const initialTasks = [
         {
           id: generateId(),
@@ -572,38 +760,38 @@
           return hash.toString();
         };
 
-      useEffect(() => {
-        const storedHash = localStorage.getItem("pixel-plan-password");
-        const sessionActive =
-          localStorage.getItem("pixel-plan-session") === "true"; // Changed from sessionStorage
-        setPasswordHash(storedHash);
-        if (storedHash && sessionActive) {
-        setIsAuthenticated(true);
-  }
-}, []);
+        useEffect(() => {
+          const storedHash = localStorage.getItem("pixel-plan-password");
+          const sessionActive =
+            localStorage.getItem("pixel-plan-session") === "true"; // Changed from sessionStorage
+          setPasswordHash(storedHash);
+          if (storedHash && sessionActive) {
+            setIsAuthenticated(true);
+          }
+        }, []);
 
         const handleLogin = (password) => {
-        if (simpleHash(password) === passwordHash) {
-        localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
-        setIsAuthenticated(true);
-        return true;
-      }
-    return false;
-  };
+          if (simpleHash(password) === passwordHash) {
+            localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+            setIsAuthenticated(true);
+            return true;
+          }
+          return false;
+        };
 
         const handlePasswordSetup = (password) => {
-        const newHash = simpleHash(password);
-        localStorage.setItem("pixel-plan-password", newHash);
-        localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
-        setPasswordHash(newHash);
-        setIsAuthenticated(true);
-      };
+          const newHash = simpleHash(password);
+          localStorage.setItem("pixel-plan-password", newHash);
+          localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+          setPasswordHash(newHash);
+          setIsAuthenticated(true);
+        };
 
         const handleLogout = () => {
-        localStorage.removeItem("pixel-plan-session"); // Changed from sessionStorage
-        setIsAuthenticated(false);
-        setPage("tasks");
-      };
+          localStorage.removeItem("pixel-plan-session"); // Changed from sessionStorage
+          setIsAuthenticated(false);
+          setPage("tasks");
+        };
 
         useEffect(() => {
           localStorage.setItem("pixel-plan-tasks", JSON.stringify(tasks));
