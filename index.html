@@ -3108,18 +3108,46 @@
         const [showImportBox, setShowImportBox] = useState(false);
         const [importData, setImportData] = useState("");
         const [lastBackupDate, setLastBackupDate] = useState(null);
+        const [storageHealth, setStorageHealth] = useState({
+          status: "checking",
+          backups: 0,
+        });
 
         useEffect(() => {
           setPermissionStatus(Notification.permission);
-          // Check for last backup timestamp
-          const backupKeys = Object.keys(localStorage).filter((k) =>
-            k.startsWith("backup-tasks-"),
-          );
-          if (backupKeys.length > 0) {
-            const latestKey = backupKeys.sort().pop();
-            const timestamp = latestKey.split("-").pop();
-            setLastBackupDate(new Date(parseInt(timestamp)));
-          }
+
+          const checkStorageHealth = () => {
+            try {
+              const backupKeys = Object.keys(localStorage).filter((k) =>
+                k.startsWith("backup-tasks-"),
+              );
+              const hasMainBackups =
+                localStorage.getItem("backup-tasks") &&
+                localStorage.getItem("backup-categories");
+
+              if (backupKeys.length > 0) {
+                const latestKey = backupKeys.sort().pop();
+                const timestamp = latestKey.split("-").pop();
+                setLastBackupDate(new Date(parseInt(timestamp)));
+              }
+
+              setStorageHealth({
+                status: hasMainBackups
+                  ? "healthy"
+                  : backupKeys.length > 0
+                    ? "partial"
+                    : "none",
+                backups: backupKeys.length + (hasMainBackups ? 2 : 0),
+              });
+            } catch (error) {
+              setStorageHealth({ status: "error", backups: 0 });
+            }
+          };
+
+          checkStorageHealth();
+          // Recheck every 10 seconds
+          const interval = setInterval(checkStorageHealth, 10000);
+          return () => clearInterval(interval);
         }, []);
 
         const requestNotificationPermission = async () => {
