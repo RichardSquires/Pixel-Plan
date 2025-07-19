@@ -157,8 +157,17 @@
           const transaction = db.transaction([storeName], "readwrite");
           const store = transaction.objectStore(storeName);
 
-          await store.put({ id: "data", value: data });
-          return true;
+          return new Promise((resolve, reject) => {
+            const request = store.put({ id: "data", value: data });
+
+            request.onsuccess = () => {
+              // Wait for the transaction to complete
+              transaction.oncomplete = () => resolve(true);
+              transaction.onerror = () => reject(transaction.error);
+            };
+
+            request.onerror = () => reject(request.error);
+          });
         } catch (error) {
           console.error(`Error saving to ${storeName}:`, error);
           return false;
