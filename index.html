@@ -3097,20 +3097,24 @@
       }
 
       // Show iOS install instructions
-      if (
-        isIOS() &&
-        !isInStandaloneMode() &&
-        !localStorage.getItem("iosInstallPromptShown")
-      ) {
-        setTimeout(() => {
-          if (
-            confirm(
-              'For the best experience on iOS, tap the Share button and select "Add to Home Screen"',
-            )
-          ) {
-            localStorage.setItem("iosInstallPromptShown", "true");
+      if (isIOS() && !isInStandaloneMode()) {
+        (async () => {
+          const promptShown = await Storage.getSetting(
+            "iosInstallPromptShown",
+            "false",
+          );
+          if (promptShown !== "true") {
+            setTimeout(() => {
+              if (
+                confirm(
+                  'For the best experience on iOS, tap the Share button and select "Add to Home Screen"',
+                )
+              ) {
+                Storage.setSetting("iosInstallPromptShown", "true");
+              }
+            }, 2000);
           }
-        }, 2000);
+        })();
       }
     </script>
   </body>
