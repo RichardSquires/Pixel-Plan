@@ -157,8 +157,17 @@
           const transaction = db.transaction([storeName], "readwrite");
           const store = transaction.objectStore(storeName);
 
-          await store.put({ id: "data", value: data });
-          return true;
+          return new Promise((resolve, reject) => {
+            const request = store.put({ id: "data", value: data });
+
+            request.onsuccess = () => {
+              // Wait for the transaction to complete
+              transaction.oncomplete = () => resolve(true);
+              transaction.onerror = () => reject(transaction.error);
+            };
+
+            request.onerror = () => reject(request.error);
+          });
         } catch (error) {
           console.error(`Error saving to ${storeName}:`, error);
           return false;
@@ -730,6 +739,7 @@
         useEffect(() => {
           const loadAppData = async () => {
             try {
+              console.log("Loading app data from IndexedDB...");
               // Migrate data from localStorage if needed
               await migrateFromLocalStorage();
 
@@ -748,6 +758,14 @@
                 Storage.getSettings(),
               ]);
 
+              console.log("Loaded data:", {
+                tasks: savedTasks,
+                categories: savedCategories,
+                icons: savedCustomIcons,
+                attributions: savedAttributions,
+                settings: settings,
+              });
+
               // Set state with loaded data or defaults
               setTasks(savedTasks.length > 0 ? savedTasks : initialTasks);
               setCategories(
@@ -761,6 +779,7 @@
               // Handle authentication
               const storedHash = settings.password;
               const sessionActive = settings.session === "true";
+              console.log("Auth state:", { storedHash, sessionActive });
               setPasswordHash(storedHash);
               if (storedHash && sessionActive) {
                 setIsAuthenticated(true);
@@ -805,25 +824,53 @@
         // Auto-save data to IndexedDB when state changes
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setTasks(tasks);
+            console.log("Saving tasks to IndexedDB:", tasks);
+            Storage.setTasks(tasks)
+              .then((result) => {
+                console.log("Tasks saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save tasks:", error);
+              });
           }
         }, [tasks, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setCategories(categories);
+            console.log("Saving categories to IndexedDB:", categories);
+            Storage.setCategories(categories)
+              .then((result) => {
+                console.log("Categories saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save categories:", error);
+              });
           }
         }, [categories, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setCustomIcons(customIcons);
+            console.log("Saving custom icons to IndexedDB:", customIcons);
+            Storage.setCustomIcons(customIcons)
+              .then((result) => {
+                console.log("Custom icons saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save custom icons:", error);
+              });
           }
         }, [customIcons, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
-            Storage.setAttributions(attributions);
+            console.log("Saving attributions to IndexedDB:", attributions);
+            Storage.setAttributions(attributions)
+              .then((result) => {
+                console.log("Attributions saved:", result);
+              })
+              .catch((error) => {
+                console.error("Failed to save attributions:", error);
+              });
           }
         }, [attributions, dataLoaded]);
 
