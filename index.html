@@ -726,63 +726,106 @@
           return hash.toString();
         };
 
+        // Load data from IndexedDB on app start
         useEffect(() => {
-          const storedHash = localStorage.getItem("pixel-plan-password");
-          const sessionActive =
-            localStorage.getItem("pixel-plan-session") === "true"; // Changed from sessionStorage
-          setPasswordHash(storedHash);
-          if (storedHash && sessionActive) {
-            setIsAuthenticated(true);
-          }
+          const loadAppData = async () => {
+            try {
+              // Migrate data from localStorage if needed
+              await migrateFromLocalStorage();
+
+              // Load all data from IndexedDB
+              const [
+                savedTasks,
+                savedCategories,
+                savedCustomIcons,
+                savedAttributions,
+                settings,
+              ] = await Promise.all([
+                Storage.getTasks(),
+                Storage.getCategories(),
+                Storage.getCustomIcons(),
+                Storage.getAttributions(),
+                Storage.getSettings(),
+              ]);
+
+              // Set state with loaded data or defaults
+              setTasks(savedTasks.length > 0 ? savedTasks : initialTasks);
+              setCategories(
+                savedCategories.length > 0
+                  ? savedCategories
+                  : defaultCategories,
+              );
+              setCustomIcons(savedCustomIcons);
+              setAttributions(savedAttributions);
+
+              // Handle authentication
+              const storedHash = settings.password;
+              const sessionActive = settings.session === "true";
+              setPasswordHash(storedHash);
+              if (storedHash && sessionActive) {
+                setIsAuthenticated(true);
+              }
+
+              setDataLoaded(true);
+            } catch (error) {
+              console.error("Error loading app data:", error);
+              // Fallback to defaults
+              setTasks(initialTasks);
+              setCategories(defaultCategories);
+              setDataLoaded(true);
+            }
+          };
+
+          loadAppData();
         }, []);
 
-        const handleLogin = (password) => {
+        const handleLogin = async (password) => {
           if (simpleHash(password) === passwordHash) {
-            localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+            await Storage.setSetting("session", "true");
             setIsAuthenticated(true);
             return true;
           }
           return false;
         };
 
-        const handlePasswordSetup = (password) => {
+        const handlePasswordSetup = async (password) => {
           const newHash = simpleHash(password);
-          localStorage.setItem("pixel-plan-password", newHash);
-          localStorage.setItem("pixel-plan-session", "true"); // Changed from sessionStorage
+          await Storage.setSetting("password", newHash);
+          await Storage.setSetting("session", "true");
           setPasswordHash(newHash);
           setIsAuthenticated(true);
         };
 
-        const handleLogout = () => {
-          localStorage.removeItem("pixel-plan-session"); // Changed from sessionStorage
+        const handleLogout = async () => {
+          await Storage.setSetting("session", "false");
           setIsAuthenticated(false);
           setPage("tasks");
         };
 
+        // Auto-save data to IndexedDB when state changes
         useEffect(() => {
-          localStorage.setItem("pixel-plan-tasks", JSON.stringify(tasks));
-        }, [tasks]);
+          if (dataLoaded) {
+            Storage.setTasks(tasks);
+          }
+        }, [tasks, dataLoaded]);
 
         useEffect(() => {
-          localStorage.setItem(
-            "pixel-plan-categories",
-            JSON.stringify(categories),
-          );
-        }, [categories]);
+          if (dataLoaded) {
+            Storage.setCategories(categories);
+          }
+        }, [categories, dataLoaded]);
 
         useEffect(() => {
-          localStorage.setItem(
-            "pixel-plan-custom-icons",
-            JSON.stringify(customIcons),
-          );
-        }, [customIcons]);
+          if (dataLoaded) {
+            Storage.setCustomIcons(customIcons);
+          }
+        }, [customIcons, dataLoaded]);
 
         useEffect(() => {
-          localStorage.setItem(
-            "pixel-plan-attributions",
-            JSON.stringify(attributions),
-          );
-        }, [attributions]);
+          if (dataLoaded) {
+            Storage.setAttributions(attributions);
+          }
+        }, [attributions, dataLoaded]);
 
         const triggerToast = (message) => {
           setToastMessage(message);
