@@ -265,53 +265,198 @@
         }
       };
 
-      // Enhanced storage functions
+      // Multi-layer persistence storage functions
       const Storage = {
+        // Save to both IndexedDB and localStorage for redundancy
+        async saveWithBackup(key, data) {
+          const serialized = JSON.stringify(data);
+          try {
+            // Primary storage: IndexedDB
+            await saveToIDB(key, data);
+            // Backup storage: localStorage with compression
+            localStorage.setItem(`backup-${key}`, serialized);
+            // Additional backup with timestamp
+            localStorage.setItem(`backup-${key}-${Date.now()}`, serialized);
+            return true;
+          } catch (error) {
+            console.error(`Failed to save ${key}:`, error);
+            // Fallback to localStorage only
+            try {
+              localStorage.setItem(`backup-${key}`, serialized);
+              return true;
+            } catch (lsError) {
+              console.error(
+                `LocalStorage fallback failed for ${key}:`,
+                lsError,
+              );
+              return false;
+            }
+          }
+        },
+
+        // Load from IndexedDB first, fallback to localStorage
+        async loadWithBackup(key, defaultValue = null) {
+          try {
+            // Try IndexedDB first
+            const idbData = await loadFromIDB(key, null);
+            if (idbData !== null) {
+              // Save to localStorage backup for next time
+              localStorage.setItem(`backup-${key}`, JSON.stringify(idbData));
+              return idbData;
+            }
+          } catch (error) {
+            console.warn(`IndexedDB load failed for ${key}:`, error);
+          }
+
+          // Fallback to localStorage backup
+          try {
+            const backupData = localStorage.getItem(`backup-${key}`);
+            if (backupData) {
+              const parsed = JSON.parse(backupData);
+              // Restore to IndexedDB
+              try {
+                await saveToIDB(key, parsed);
+              } catch (restoreError) {
+                console.warn(
+                  `Failed to restore ${key} to IndexedDB:`,
+                  restoreError,
+                );
+              }
+              return parsed;
+            }
+          } catch (error) {
+            console.warn(`LocalStorage backup load failed for ${key}:`, error);
+          }
+
+          // Try timestamped backups as last resort
+          try {
+            const keys = Object.keys(localStorage).filter((k) =>
+              k.startsWith(`backup-${key}-`),
+            );
+            if (keys.length > 0) {
+              // Get the most recent backup
+              const latestKey = keys.sort().pop();
+              const backupData = localStorage.getItem(latestKey);
+              if (backupData) {
+                const parsed = JSON.parse(backupData);
+                console.log(
+                  `Restored ${key} from timestamped backup: ${latestKey}`,
+                );
+                return parsed;
+              }
+            }
+          } catch (error) {
+            console.warn(`Timestamped backup load failed for ${key}:`, error);
+          }
+
+          return defaultValue;
+        },
+
         async getTasks() {
-          return await loadFromIDB(STORES.TASKS, []);
+          return await this.loadWithBackup(STORES.TASKS, []);
         },
 
         async setTasks(tasks) {
-          return await saveToIDB(STORES.TASKS, tasks);
+          return await this.saveWithBackup(STORES.TASKS, tasks);
         },
 
         async getCategories() {
-          return await loadFromIDB(STORES.CATEGORIES, []);
+          return await this.loadWithBackup(STORES.CATEGORIES, []);
         },
 
         async setCategories(categories) {
-          return await saveToIDB(STORES.CATEGORIES, categories);
+          return await this.saveWithBackup(STORES.CATEGORIES, categories);
         },
 
         async getCustomIcons() {
-          return await loadFromIDB(STORES.CUSTOM_ICONS, []);
+          return await this.loadWithBackup(STORES.CUSTOM_ICONS, []);
         },
 
         async setCustomIcons(icons) {
-          return await saveToIDB(STORES.CUSTOM_ICONS, icons);
+          return await this.saveWithBackup(STORES.CUSTOM_ICONS, icons);
         },
 
         async getAttributions() {
-          return await loadFromIDB(STORES.ATTRIBUTIONS, []);
+          return await this.loadWithBackup(STORES.ATTRIBUTIONS, []);
         },
 
         async setAttributions(attributions) {
-          return await saveToIDB(STORES.ATTRIBUTIONS, attributions);
+          return await this.saveWithBackup(STORES.ATTRIBUTIONS, attributions);
         },
 
         async getSettings() {
-          return await loadFromIDB(STORES.SETTINGS, {});
+          return await this.loadWithBackup(STORES.SETTINGS, {});
         },
 
         async setSetting(key, value) {
           const settings = await this.getSettings();
           settings[key] = value;
-          return await saveToIDB(STORES.SETTINGS, settings);
+          return await this.saveWithBackup(STORES.SETTINGS, settings);
         },
 
         async getSetting(key, defaultValue = null) {
           const settings = await this.getSettings();
           return settings[key] !== undefined ? settings[key] : defaultValue;
+        },
+
+        // Export all data for manual backup
+        async exportAllData() {
+          try {
+            const allData = {
+              tasks: await this.getTasks(),
+              categories: await this.getCategories(),
+              customIcons: await this.getCustomIcons(),
+              attributions: await this.getAttributions(),
+              settings: await this.getSettings(),
+              exportDate: new Date().toISOString(),
+              version: "1.0",
+            };
+            return JSON.stringify(allData, null, 2);
+          } catch (error) {
+            console.error("Failed to export data:", error);
+            return null;
+          }
+        },
+
+        // Import data from backup
+        async importAllData(jsonData) {
+          try {
+            const data = JSON.parse(jsonData);
+            if (data.tasks) await this.setTasks(data.tasks);
+            if (data.categories) await this.setCategories(data.categories);
+            if (data.customIcons) await this.setCustomIcons(data.customIcons);
+            if (data.attributions)
+              await this.setAttributions(data.attributions);
+            if (data.settings) {
+              for (const [key, value] of Object.entries(data.settings)) {
+                await this.setSetting(key, value);
+              }
+            }
+            return true;
+          } catch (error) {
+            console.error("Failed to import data:", error);
+            return false;
+          }
+        },
+
+        // Clean up old timestamped backups (keep last 5)
+        cleanupOldBackups() {
+          try {
+            Object.keys(STORES).forEach((store) => {
+              const keys = Object.keys(localStorage)
+                .filter((k) => k.startsWith(`backup-${store}-`))
+                .sort();
+
+              // Keep only the 5 most recent backups
+              if (keys.length > 5) {
+                keys.slice(0, -5).forEach((key) => {
+                  localStorage.removeItem(key);
+                });
+              }
+            });
+          } catch (error) {
+            console.warn("Failed to cleanup old backups:", error);
+          }
         },
       };
 
