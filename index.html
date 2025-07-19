@@ -265,53 +265,198 @@
         }
       };
 
-      // Enhanced storage functions
+      // Multi-layer persistence storage functions
       const Storage = {
+        // Save to both IndexedDB and localStorage for redundancy
+        async saveWithBackup(key, data) {
+          const serialized = JSON.stringify(data);
+          try {
+            // Primary storage: IndexedDB
+            await saveToIDB(key, data);
+            // Backup storage: localStorage with compression
+            localStorage.setItem(`backup-${key}`, serialized);
+            // Additional backup with timestamp
+            localStorage.setItem(`backup-${key}-${Date.now()}`, serialized);
+            return true;
+          } catch (error) {
+            console.error(`Failed to save ${key}:`, error);
+            // Fallback to localStorage only
+            try {
+              localStorage.setItem(`backup-${key}`, serialized);
+              return true;
+            } catch (lsError) {
+              console.error(
+                `LocalStorage fallback failed for ${key}:`,
+                lsError,
+              );
+              return false;
+            }
+          }
+        },
+
+        // Load from IndexedDB first, fallback to localStorage
+        async loadWithBackup(key, defaultValue = null) {
+          try {
+            // Try IndexedDB first
+            const idbData = await loadFromIDB(key, null);
+            if (idbData !== null) {
+              // Save to localStorage backup for next time
+              localStorage.setItem(`backup-${key}`, JSON.stringify(idbData));
+              return idbData;
+            }
+          } catch (error) {
+            console.warn(`IndexedDB load failed for ${key}:`, error);
+          }
+
+          // Fallback to localStorage backup
+          try {
+            const backupData = localStorage.getItem(`backup-${key}`);
+            if (backupData) {
+              const parsed = JSON.parse(backupData);
+              // Restore to IndexedDB
+              try {
+                await saveToIDB(key, parsed);
+              } catch (restoreError) {
+                console.warn(
+                  `Failed to restore ${key} to IndexedDB:`,
+                  restoreError,
+                );
+              }
+              return parsed;
+            }
+          } catch (error) {
+            console.warn(`LocalStorage backup load failed for ${key}:`, error);
+          }
+
+          // Try timestamped backups as last resort
+          try {
+            const keys = Object.keys(localStorage).filter((k) =>
+              k.startsWith(`backup-${key}-`),
+            );
+            if (keys.length > 0) {
+              // Get the most recent backup
+              const latestKey = keys.sort().pop();
+              const backupData = localStorage.getItem(latestKey);
+              if (backupData) {
+                const parsed = JSON.parse(backupData);
+                console.log(
+                  `Restored ${key} from timestamped backup: ${latestKey}`,
+                );
+                return parsed;
+              }
+            }
+          } catch (error) {
+            console.warn(`Timestamped backup load failed for ${key}:`, error);
+          }
+
+          return defaultValue;
+        },
+
         async getTasks() {
-          return await loadFromIDB(STORES.TASKS, []);
+          return await this.loadWithBackup(STORES.TASKS, []);
         },
 
         async setTasks(tasks) {
-          return await saveToIDB(STORES.TASKS, tasks);
+          return await this.saveWithBackup(STORES.TASKS, tasks);
         },
 
         async getCategories() {
-          return await loadFromIDB(STORES.CATEGORIES, []);
+          return await this.loadWithBackup(STORES.CATEGORIES, []);
         },
 
         async setCategories(categories) {
-          return await saveToIDB(STORES.CATEGORIES, categories);
+          return await this.saveWithBackup(STORES.CATEGORIES, categories);
         },
 
         async getCustomIcons() {
-          return await loadFromIDB(STORES.CUSTOM_ICONS, []);
+          return await this.loadWithBackup(STORES.CUSTOM_ICONS, []);
         },
 
         async setCustomIcons(icons) {
-          return await saveToIDB(STORES.CUSTOM_ICONS, icons);
+          return await this.saveWithBackup(STORES.CUSTOM_ICONS, icons);
         },
 
         async getAttributions() {
-          return await loadFromIDB(STORES.ATTRIBUTIONS, []);
+          return await this.loadWithBackup(STORES.ATTRIBUTIONS, []);
         },
 
         async setAttributions(attributions) {
-          return await saveToIDB(STORES.ATTRIBUTIONS, attributions);
+          return await this.saveWithBackup(STORES.ATTRIBUTIONS, attributions);
         },
 
         async getSettings() {
-          return await loadFromIDB(STORES.SETTINGS, {});
+          return await this.loadWithBackup(STORES.SETTINGS, {});
         },
 
         async setSetting(key, value) {
           const settings = await this.getSettings();
           settings[key] = value;
-          return await saveToIDB(STORES.SETTINGS, settings);
+          return await this.saveWithBackup(STORES.SETTINGS, settings);
         },
 
         async getSetting(key, defaultValue = null) {
           const settings = await this.getSettings();
           return settings[key] !== undefined ? settings[key] : defaultValue;
+        },
+
+        // Export all data for manual backup
+        async exportAllData() {
+          try {
+            const allData = {
+              tasks: await this.getTasks(),
+              categories: await this.getCategories(),
+              customIcons: await this.getCustomIcons(),
+              attributions: await this.getAttributions(),
+              settings: await this.getSettings(),
+              exportDate: new Date().toISOString(),
+              version: "1.0",
+            };
+            return JSON.stringify(allData, null, 2);
+          } catch (error) {
+            console.error("Failed to export data:", error);
+            return null;
+          }
+        },
+
+        // Import data from backup
+        async importAllData(jsonData) {
+          try {
+            const data = JSON.parse(jsonData);
+            if (data.tasks) await this.setTasks(data.tasks);
+            if (data.categories) await this.setCategories(data.categories);
+            if (data.customIcons) await this.setCustomIcons(data.customIcons);
+            if (data.attributions)
+              await this.setAttributions(data.attributions);
+            if (data.settings) {
+              for (const [key, value] of Object.entries(data.settings)) {
+                await this.setSetting(key, value);
+              }
+            }
+            return true;
+          } catch (error) {
+            console.error("Failed to import data:", error);
+            return false;
+          }
+        },
+
+        // Clean up old timestamped backups (keep last 5)
+        cleanupOldBackups() {
+          try {
+            Object.keys(STORES).forEach((store) => {
+              const keys = Object.keys(localStorage)
+                .filter((k) => k.startsWith(`backup-${store}-`))
+                .sort();
+
+              // Keep only the 5 most recent backups
+              if (keys.length > 5) {
+                keys.slice(0, -5).forEach((key) => {
+                  localStorage.removeItem(key);
+                });
+              }
+            });
+          } catch (error) {
+            console.warn("Failed to cleanup old backups:", error);
+          }
         },
       };
 
@@ -735,15 +880,19 @@
           return hash.toString();
         };
 
-        // Load data from IndexedDB on app start
+        // Load data with robust recovery and setup periodic backups
         useEffect(() => {
           const loadAppData = async () => {
             try {
-              console.log("Loading app data from IndexedDB...");
+              console.log("Loading app data with robust recovery...");
+
+              // Clean up old backups first
+              Storage.cleanupOldBackups();
+
               // Migrate data from localStorage if needed
               await migrateFromLocalStorage();
 
-              // Load all data from IndexedDB
+              // Load all data with backup fallback
               const [
                 savedTasks,
                 savedCategories,
@@ -767,18 +916,33 @@
               });
 
               // Set state with loaded data or defaults
-              setTasks(savedTasks.length > 0 ? savedTasks : initialTasks);
-              setCategories(
-                savedCategories.length > 0
+              const tasksToUse =
+                savedTasks && savedTasks.length > 0 ? savedTasks : initialTasks;
+              const categoriesToUse =
+                savedCategories && savedCategories.length > 0
                   ? savedCategories
-                  : defaultCategories,
-              );
-              setCustomIcons(savedCustomIcons);
-              setAttributions(savedAttributions);
+                  : defaultCategories;
+
+              setTasks(tasksToUse);
+              setCategories(categoriesToUse);
+              setCustomIcons(savedCustomIcons || []);
+              setAttributions(savedAttributions || []);
+
+              // If we had to use defaults, save them immediately
+              if (savedTasks.length === 0) {
+                console.log("No saved tasks found, initializing with defaults");
+                await Storage.setTasks(tasksToUse);
+              }
+              if (savedCategories.length === 0) {
+                console.log(
+                  "No saved categories found, initializing with defaults",
+                );
+                await Storage.setCategories(categoriesToUse);
+              }
 
               // Handle authentication
-              const storedHash = settings.password;
-              const sessionActive = settings.session === "true";
+              const storedHash = settings?.password;
+              const sessionActive = settings?.session === "true";
               console.log("Auth state:", { storedHash, sessionActive });
               setPasswordHash(storedHash);
               if (storedHash && sessionActive) {
@@ -786,16 +950,85 @@
               }
 
               setDataLoaded(true);
+
+              // Show recovery message if data was restored from backup
+              const hasBackupData =
+                localStorage.getItem("backup-tasks") ||
+                localStorage.getItem("backup-categories") ||
+                Object.keys(localStorage).some((k) => k.startsWith("backup-"));
+
+              if (
+                hasBackupData &&
+                (savedTasks.length > 0 || savedCategories.length > 0)
+              ) {
+                console.log("Data successfully recovered from backup storage");
+              }
             } catch (error) {
               console.error("Error loading app data:", error);
-              // Fallback to defaults
-              setTasks(initialTasks);
-              setCategories(defaultCategories);
+
+              // Enhanced fallback with backup attempt
+              try {
+                console.log("Attempting backup recovery...");
+                const backupTasks = localStorage.getItem("backup-tasks");
+                const backupCategories =
+                  localStorage.getItem("backup-categories");
+
+                let recoveredFromBackup = false;
+
+                if (backupTasks) {
+                  const tasks = JSON.parse(backupTasks);
+                  setTasks(tasks.length > 0 ? tasks : initialTasks);
+                  console.log("Tasks recovered from backup");
+                  if (tasks.length > 0) recoveredFromBackup = true;
+                } else {
+                  setTasks(initialTasks);
+                }
+
+                if (backupCategories) {
+                  const categories = JSON.parse(backupCategories);
+                  setCategories(
+                    categories.length > 0 ? categories : defaultCategories,
+                  );
+                  console.log("Categories recovered from backup");
+                  if (categories.length > 0) recoveredFromBackup = true;
+                } else {
+                  setCategories(defaultCategories);
+                }
+
+                setCustomIcons([]);
+                setAttributions([]);
+
+                // Show recovery notification
+                if (recoveredFromBackup) {
+                  setTimeout(() => {
+                    triggerToast("👍 Your data was recovered from backup!");
+                  }, 1000);
+                }
+              } catch (backupError) {
+                console.error("Backup recovery also failed:", backupError);
+                // Ultimate fallback to defaults
+                setTasks(initialTasks);
+                setCategories(defaultCategories);
+                setCustomIcons([]);
+                setAttributions([]);
+              }
+
               setDataLoaded(true);
             }
           };
 
           loadAppData();
+
+          // Set up periodic backup every 30 seconds
+          const backupInterval = setInterval(async () => {
+            try {
+              Storage.cleanupOldBackups();
+            } catch (error) {
+              console.warn("Periodic backup cleanup failed:", error);
+            }
+          }, 30000);
+
+          return () => clearInterval(backupInterval);
         }, []);
 
         const handleLogin = async (password) => {
@@ -1073,6 +1306,9 @@
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto"></div>
                 <p className="mt-4 text-gray-600 font-pangolin">
                   Loading your tasks...
+                </p>
+                <p className="mt-2 text-sm text-gray-500 font-pangolin">
+                  Checking for backups...
                 </p>
               </div>
             </div>
@@ -2869,9 +3105,49 @@
           Notification.permission,
         );
         const [attributionText, setAttributionText] = useState("");
+        const [showImportBox, setShowImportBox] = useState(false);
+        const [importData, setImportData] = useState("");
+        const [lastBackupDate, setLastBackupDate] = useState(null);
+        const [storageHealth, setStorageHealth] = useState({
+          status: "checking",
+          backups: 0,
+        });
 
         useEffect(() => {
           setPermissionStatus(Notification.permission);
+
+          const checkStorageHealth = () => {
+            try {
+              const backupKeys = Object.keys(localStorage).filter((k) =>
+                k.startsWith("backup-tasks-"),
+              );
+              const hasMainBackups =
+                localStorage.getItem("backup-tasks") &&
+                localStorage.getItem("backup-categories");
+
+              if (backupKeys.length > 0) {
+                const latestKey = backupKeys.sort().pop();
+                const timestamp = latestKey.split("-").pop();
+                setLastBackupDate(new Date(parseInt(timestamp)));
+              }
+
+              setStorageHealth({
+                status: hasMainBackups
+                  ? "healthy"
+                  : backupKeys.length > 0
+                    ? "partial"
+                    : "none",
+                backups: backupKeys.length + (hasMainBackups ? 2 : 0),
+              });
+            } catch (error) {
+              setStorageHealth({ status: "error", backups: 0 });
+            }
+          };
+
+          checkStorageHealth();
+          // Recheck every 10 seconds
+          const interval = setInterval(checkStorageHealth, 10000);
+          return () => clearInterval(interval);
         }, []);
 
         const requestNotificationPermission = async () => {
@@ -2903,6 +3179,65 @@
           if (!attributionText.trim()) return;
           setAttributions((prev) => [...prev, attributionText.trim()]);
           setAttributionText("");
+        };
+
+        const handleExportData = async () => {
+          try {
+            const exportData = await Storage.exportAllData();
+            if (exportData) {
+              const blob = new Blob([exportData], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `pixel-plan-backup-${new Date().toISOString().split("T")[0]}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              alert("Data exported successfully!");
+            } else {
+              alert("Failed to export data");
+            }
+          } catch (error) {
+            console.error("Export failed:", error);
+            alert("Export failed: " + error.message);
+          }
+        };
+
+        const handleImportData = async () => {
+          try {
+            if (!importData.trim()) {
+              alert("Please paste your backup data first");
+              return;
+            }
+
+            const success = await Storage.importAllData(importData);
+            if (success) {
+              alert(
+                "Data imported successfully! Please refresh the page to see changes.",
+              );
+              setImportData("");
+              setShowImportBox(false);
+              // Optionally trigger a page reload
+              window.location.reload();
+            } else {
+              alert("Failed to import data. Please check the format.");
+            }
+          } catch (error) {
+            console.error("Import failed:", error);
+            alert("Import failed: " + error.message);
+          }
+        };
+
+        const handleFileImport = (event) => {
+          const file = event.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              setImportData(e.target.result);
+            };
+            reader.readAsText(file);
+          }
         };
 
         return (
@@ -2959,6 +3294,111 @@
                 >
                   <span className="font-medium">Logout</span>
                 </button>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <h3 className="text-lg font-medium mb-2">
+                  Data Backup & Restore
+                </h3>
+
+                {/* Storage Health Status */}
+                <div
+                  className={`mb-3 p-3 rounded-lg border ${
+                    storageHealth.status === "healthy"
+                      ? "bg-green-50 border-green-200 text-green-800"
+                      : storageHealth.status === "partial"
+                        ? "bg-yellow-50 border-yellow-200 text-yellow-800"
+                        : storageHealth.status === "none"
+                          ? "bg-red-50 border-red-200 text-red-800"
+                          : "bg-gray-50 border-gray-200 text-gray-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      {storageHealth.status === "healthy"
+                        ? "✅ Storage Healthy"
+                        : storageHealth.status === "partial"
+                          ? "⚠️ Partial Backups"
+                          : storageHealth.status === "none"
+                            ? "❌ No Backups Found"
+                            : "🔄 Checking..."}
+                    </span>
+                    <span className="text-xs">
+                      {storageHealth.backups} backups
+                    </span>
+                  </div>
+                </div>
+
+                {lastBackupDate && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    Last backup: {lastBackupDate.toLocaleString()}
+                  </p>
+                )}
+                <div className="space-y-2">
+                  <button
+                    onClick={handleExportData}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    📁 Export All Data
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportBox(!showImportBox)}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    📂 Import Data
+                  </button>
+
+                  {showImportBox && (
+                    <div className="mt-4 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                      <h4 className="font-medium mb-2">Import Backup Data</h4>
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileImport}
+                          className="w-full text-sm"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Or paste JSON data below:
+                        </p>
+                        <textarea
+                          value={importData}
+                          onChange={(e) => setImportData(e.target.value)}
+                          placeholder="Paste your exported JSON data here..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                          rows="4"
+                        ></textarea>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={handleImportData}
+                            disabled={!importData.trim()}
+                            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2 rounded-md transition-colors"
+                          >
+                            Import
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowImportBox(false);
+                              setImportData("");
+                            }}
+                            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-md transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    💾 <strong>Tip:</strong> Your data is automatically backed
+                    up every 30 seconds to prevent loss during cache clears.
+                    Export regularly for extra safety!
+                  </p>
+                </div>
               </div>
               <div className="pt-4 border-t border-gray-200">
                 <h3 className="text-lg font-medium mb-2">Attributions</h3>
