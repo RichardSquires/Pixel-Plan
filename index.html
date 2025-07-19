@@ -880,15 +880,19 @@
           return hash.toString();
         };
 
-        // Load data from IndexedDB on app start
+        // Load data with robust recovery and setup periodic backups
         useEffect(() => {
           const loadAppData = async () => {
             try {
-              console.log("Loading app data from IndexedDB...");
+              console.log("Loading app data with robust recovery...");
+
+              // Clean up old backups first
+              Storage.cleanupOldBackups();
+
               // Migrate data from localStorage if needed
               await migrateFromLocalStorage();
 
-              // Load all data from IndexedDB
+              // Load all data with backup fallback
               const [
                 savedTasks,
                 savedCategories,
@@ -912,18 +916,33 @@
               });
 
               // Set state with loaded data or defaults
-              setTasks(savedTasks.length > 0 ? savedTasks : initialTasks);
-              setCategories(
-                savedCategories.length > 0
+              const tasksToUse =
+                savedTasks && savedTasks.length > 0 ? savedTasks : initialTasks;
+              const categoriesToUse =
+                savedCategories && savedCategories.length > 0
                   ? savedCategories
-                  : defaultCategories,
-              );
-              setCustomIcons(savedCustomIcons);
-              setAttributions(savedAttributions);
+                  : defaultCategories;
+
+              setTasks(tasksToUse);
+              setCategories(categoriesToUse);
+              setCustomIcons(savedCustomIcons || []);
+              setAttributions(savedAttributions || []);
+
+              // If we had to use defaults, save them immediately
+              if (savedTasks.length === 0) {
+                console.log("No saved tasks found, initializing with defaults");
+                await Storage.setTasks(tasksToUse);
+              }
+              if (savedCategories.length === 0) {
+                console.log(
+                  "No saved categories found, initializing with defaults",
+                );
+                await Storage.setCategories(categoriesToUse);
+              }
 
               // Handle authentication
-              const storedHash = settings.password;
-              const sessionActive = settings.session === "true";
+              const storedHash = settings?.password;
+              const sessionActive = settings?.session === "true";
               console.log("Auth state:", { storedHash, sessionActive });
               setPasswordHash(storedHash);
               if (storedHash && sessionActive) {
@@ -931,16 +950,74 @@
               }
 
               setDataLoaded(true);
+
+              // Show recovery message if data was restored from backup
+              const hasBackupData =
+                localStorage.getItem("backup-tasks") ||
+                localStorage.getItem("backup-categories") ||
+                Object.keys(localStorage).some((k) => k.startsWith("backup-"));
+
+              if (
+                hasBackupData &&
+                (savedTasks.length > 0 || savedCategories.length > 0)
+              ) {
+                console.log("Data successfully recovered from backup storage");
+              }
             } catch (error) {
               console.error("Error loading app data:", error);
-              // Fallback to defaults
-              setTasks(initialTasks);
-              setCategories(defaultCategories);
+
+              // Enhanced fallback with backup attempt
+              try {
+                console.log("Attempting backup recovery...");
+                const backupTasks = localStorage.getItem("backup-tasks");
+                const backupCategories =
+                  localStorage.getItem("backup-categories");
+
+                if (backupTasks) {
+                  const tasks = JSON.parse(backupTasks);
+                  setTasks(tasks.length > 0 ? tasks : initialTasks);
+                  console.log("Tasks recovered from backup");
+                } else {
+                  setTasks(initialTasks);
+                }
+
+                if (backupCategories) {
+                  const categories = JSON.parse(backupCategories);
+                  setCategories(
+                    categories.length > 0 ? categories : defaultCategories,
+                  );
+                  console.log("Categories recovered from backup");
+                } else {
+                  setCategories(defaultCategories);
+                }
+
+                setCustomIcons([]);
+                setAttributions([]);
+              } catch (backupError) {
+                console.error("Backup recovery also failed:", backupError);
+                // Ultimate fallback to defaults
+                setTasks(initialTasks);
+                setCategories(defaultCategories);
+                setCustomIcons([]);
+                setAttributions([]);
+              }
+
               setDataLoaded(true);
             }
           };
 
           loadAppData();
+
+          // Set up periodic backup every 30 seconds
+          const backupInterval = setInterval(async () => {
+            try {
+              Storage.cleanupOldBackups();
+            } catch (error) {
+              console.warn("Periodic backup cleanup failed:", error);
+            }
+          }, 30000);
+
+          return () => clearInterval(backupInterval);
         }, []);
 
         const handleLogin = async (password) => {
