@@ -973,10 +973,13 @@
                 const backupCategories =
                   localStorage.getItem("backup-categories");
 
+                let recoveredFromBackup = false;
+
                 if (backupTasks) {
                   const tasks = JSON.parse(backupTasks);
                   setTasks(tasks.length > 0 ? tasks : initialTasks);
                   console.log("Tasks recovered from backup");
+                  if (tasks.length > 0) recoveredFromBackup = true;
                 } else {
                   setTasks(initialTasks);
                 }
@@ -987,12 +990,20 @@
                     categories.length > 0 ? categories : defaultCategories,
                   );
                   console.log("Categories recovered from backup");
+                  if (categories.length > 0) recoveredFromBackup = true;
                 } else {
                   setCategories(defaultCategories);
                 }
 
                 setCustomIcons([]);
                 setAttributions([]);
+
+                // Show recovery notification
+                if (recoveredFromBackup) {
+                  setTimeout(() => {
+                    triggerToast("👍 Your data was recovered from backup!");
+                  }, 1000);
+                }
               } catch (backupError) {
                 console.error("Backup recovery also failed:", backupError);
                 // Ultimate fallback to defaults
