@@ -1263,14 +1263,84 @@
           setPage("tasks");
         };
 
+// --- NEW ---
+        // Helper function to calculate the next due date for recurring tasks
+        const calculateNextDueDate = (dueDate, recurrence) => {
+            if (!dueDate) return null;
+            const currentDueDate = new Date(dueDate + 'T00:00:00');
+            let nextDueDate = new Date(currentDueDate);
+
+            switch (recurrence.type) {
+                case 'daily':
+                    nextDueDate.setDate(currentDueDate.getDate() + 1);
+                    break;
+                case 'weekly':
+                    nextDueDate.setDate(currentDueDate.getDate() + 7);
+                    break;
+                case 'monthly':
+                    nextDueDate.setMonth(currentDueDate.getMonth() + 1);
+                    break;
+                case 'specific-days':
+                    if (recurrence.days && recurrence.days.length > 0) {
+                        const sortedDays = recurrence.days.sort((a, b) => a - b);
+                        let currentDay = currentDueDate.getDay();
+                        let nextDayOfWeek = -1;
+
+                        // Find the next scheduled day of the week
+                        for (const day of sortedDays) {
+                            if (day > currentDay) {
+                                nextDayOfWeek = day;
+                                break;
+                            }
+                        }
+
+                        let daysToAdd;
+                        if (nextDayOfWeek !== -1) {
+                            // Next occurrence is in the same week
+                            daysToAdd = nextDayOfWeek - currentDay;
+                        } else {
+                            // Next occurrence is in the following week
+                            daysToAdd = (7 - currentDay) + sortedDays[0];
+                        }
+                        nextDueDate.setDate(currentDueDate.getDate() + daysToAdd);
+                    } else {
+                        return null; // No specific days defined
+                    }
+                    break;
+                default:
+                    return null;
+            }
+            return nextDueDate.toISOString().split('T')[0];
+        };
+        
+// --- MODIFIED ---
         const toggleTaskCompletion = (taskId) => {
-          setTasks(
-            tasks.map((task) =>
-              task.id === taskId
-                ? { ...task, completed: !task.completed }
-                : task,
-            ),
-          );
+            let completedTask = null;
+            const newTasks = tasks.map(task => {
+                if (task.id === taskId) {
+                    completedTask = { ...task, completed: !task.completed };
+                    return completedTask;
+                }
+                return task;
+            });
+
+            if (completedTask && completedTask.completed && completedTask.recurrence && completedTask.recurrence.type !== 'no-schedule') {
+                const nextDueDate = calculateNextDueDate(completedTask.dueDate, completedTask.recurrence);
+                if (nextDueDate) {
+                    const newTask = {
+                        ...completedTask,
+                        id: generateId(),
+                        completed: false,
+                        dueDate: nextDueDate,
+                        subtasks: completedTask.subtasks.map(st => ({ ...st, id: generateId(), completed: false })),
+                    };
+                    setTasks([newTask, ...newTasks]);
+                } else {
+                    setTasks(newTasks);
+                }
+            } else {
+                setTasks(newTasks);
+            }
         };
 
         const handleToggleSubtask = (taskId, subtaskId) => {
