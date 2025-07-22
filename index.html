@@ -3162,7 +3162,7 @@ useEffect(() => {
                 </button>
               </form>
 
-              <div className="space-y-2">
+<div className="space-y-2">
                 {categories.map((cat, index) => {
                   const icon = customIcons.find((i) => i.id === cat.iconId);
                   return (
@@ -3170,50 +3170,63 @@ useEffect(() => {
                       key={cat.id}
                       className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
                     >
-                      <div className="flex items-center">
-                        <div className="mr-3 text-purple-500 w-6 h-6 flex-shrink-0">
-                          {icon ? (
-                            <img
-                              src={icon.src}
-                              alt="icon"
-                              className="w-full h-full object-contain"
-                            />
-                          ) : (
-                            <TasksIcon />
-                          )}
-                        </div>
-                        <span>{cat.name}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <button
-                          onClick={() => moveCategory(index, -1)}
-                          disabled={index === 0}
-                          className="p-1 disabled:opacity-25"
-                        >
-                          <ArrowUpIcon />
-                        </button>
-                        <button
-                          onClick={() => moveCategory(index, 1)}
-                          disabled={index === categories.length - 1}
-                          className="p-1 disabled:opacity-25"
-                        >
-                          <ArrowDownIcon />
-                        </button>
-                        <button onClick={() => onEdit(cat)} className="p-1">
-                          <EditIcon />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-1 text-red-500"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
+                      {editingCategory && editingCategory.id === cat.id ? (
+                        <CategoryEditForm
+                          category={cat}
+                          onSave={handleUpdateCategory}
+                          onCancel={() => setEditingCategory(null)}
+                          customIcons={customIcons}
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center">
+                            <div className="mr-3 text-purple-500 w-6 h-6 flex-shrink-0">
+                              {icon ? (
+                                <img
+                                  src={icon.src}
+                                  alt="icon"
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <TasksIcon />
+                              )}
+                            </div>
+                            <span>{cat.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => moveCategory(index, -1)}
+                              disabled={index === 0}
+                              className="p-1 disabled:opacity-25"
+                            >
+                              <ArrowUpIcon />
+                            </button>
+                            <button
+                              onClick={() => moveCategory(index, 1)}
+                              disabled={index === categories.length - 1}
+                              className="p-1 disabled:opacity-25"
+                            >
+                              <ArrowDownIcon />
+                            </button>
+                            <button
+                              onClick={() => setEditingCategory(cat)}
+                              className="p-1"
+                            >
+                              <EditIcon />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-1 text-red-500"
+                            >
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            </div>
             {showIconPicker && (
               <IconPickerModal
                 customIcons={customIcons}
