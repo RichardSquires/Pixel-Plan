@@ -1277,6 +1277,9 @@
                 case 'weekly':
                     nextDueDate.setDate(currentDueDate.getDate() + 7);
                     break;
+                case 'every-x-weeks': // --- NEW ---
+                    nextDueDate.setDate(currentDueDate.getDate() + (recurrence.weeks * 7)); // --- NEW ---
+                    break; // --- NEW ---
                 case 'monthly':
                     nextDueDate.setMonth(currentDueDate.getMonth() + 1);
                     break;
@@ -1293,6 +1296,25 @@
                                 break;
                             }
                         }
+
+                        let daysToAdd;
+                        if (nextDayOfWeek !== -1) {
+                            // Next occurrence is in the same week
+                            daysToAdd = nextDayOfWeek - currentDay;
+                        } else {
+                            // Next occurrence is in the following week
+                            daysToAdd = (7 - currentDay) + sortedDays[0];
+                        }
+                        nextDueDate.setDate(currentDueDate.getDate() + daysToAdd);
+                    } else {
+                        return null; // No specific days defined
+                    }
+                    break;
+                default:
+                    return null;
+            }
+            return nextDueDate.toISOString().split('T')[0];
+        };
 
                         let daysToAdd;
                         if (nextDayOfWeek !== -1) {
@@ -1996,12 +2018,13 @@
         const [recurrence, setRecurrence] = useState({
           type: "no-schedule",
           days: [],
+          weeks: 1, // --- NEW ---
         });
         const [showIconPicker, setShowIconPicker] = useState(false);
 
         const isEditing = editingTask !== null;
 
-        useEffect(() => {
+useEffect(() => {
           if (isEditing) {
             setContent(editingTask.content);
             setCategoryId(
@@ -2019,7 +2042,7 @@
             setReminderDate(editingTask.reminderDate || "");
             setReminderTime(editingTask.reminderTime || "");
             setRecurrence(
-              editingTask.recurrence || { type: "no-schedule", days: [] },
+              editingTask.recurrence || { type: "no-schedule", days: [], weeks: 1 }, // --- MODIFIED ---
             );
           } else {
             setContent("");
@@ -2032,7 +2055,7 @@
             setReminderOn(false);
             setReminderDate("");
             setReminderTime("");
-            setRecurrence({ type: "no-schedule", days: [] });
+            setRecurrence({ type: "no-schedule", days: [], weeks: 1 }); // --- MODIFIED ---
           }
         }, [editingTask, isEditing, categories]);
 
@@ -2216,9 +2239,28 @@
                     <option value="no-schedule">No schedule</option>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
+                    <option value="every-x-weeks">Every X Weeks</option> {/* --- NEW --- */}
                     <option value="monthly">Monthly</option>
                     <option value="specific-days">On certain days</option>
                   </select>
+
+                  {/* --- NEW --- */}
+                  {recurrence.type === 'every-x-weeks' && (
+                    <div className="mt-4">
+                      <label htmlFor="recurrence-weeks" className="block text-sm font-medium text-gray-700 mb-1">
+                        How many weeks?
+                      </label>
+                      <input
+                        id="recurrence-weeks"
+                        type="number"
+                        value={recurrence.weeks}
+                        onChange={(e) => setRecurrence({ ...recurrence, weeks: parseInt(e.target.value) || 1 })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 bg-gray-50"
+                        min="1"
+                      />
+                    </div>
+                  )}
+
                   {recurrence.type === "specific-days" && (
                     <div className="flex justify-around mt-4">
                       {weekDays.map((day, index) => (
@@ -2613,6 +2655,8 @@
               return "Repeats Daily";
             case "weekly":
               return "Repeats Weekly";
+            case "every-x-weeks": // --- NEW ---
+              return `Repeats every ${recurrence.weeks} weeks`; // --- NEW ---
             case "monthly":
               return "Repeats Monthly";
             case "specific-days":
