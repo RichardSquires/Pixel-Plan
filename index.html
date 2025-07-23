@@ -1107,9 +1107,9 @@
 
                 if (backupTasks) {
                   const tasks = JSON.parse(backupTasks);
-                  setTasks(tasks.length > 0 ? tasks : initialTasks);
+                  setTasks(Array.isArray(tasks) && tasks.length > 0 ? tasks : initialTasks);
                   console.log("Tasks recovered from backup");
-                  if (tasks.length > 0) recoveredFromBackup = true;
+                  if (Array.isArray(tasks) && tasks.length > 0) recoveredFromBackup = true;
                 } else {
                   setTasks(initialTasks);
                 }
@@ -1117,10 +1117,10 @@
                 if (backupCategories) {
                   const categories = JSON.parse(backupCategories);
                   setCategories(
-                    categories.length > 0 ? categories : defaultCategories,
+                    Array.isArray(categories) && categories.length > 0 ? categories : defaultCategories,
                   );
                   console.log("Categories recovered from backup");
-                  if (categories.length > 0) recoveredFromBackup = true;
+                  if (Array.isArray(categories) && categories.length > 0) recoveredFromBackup = true;
                 } else {
                   setCategories(defaultCategories);
                 }
