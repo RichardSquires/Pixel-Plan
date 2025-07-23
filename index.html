@@ -160,11 +160,20 @@
 
             request.onsuccess = () => {
               // Wait for the transaction to complete
-              transaction.oncomplete = () => resolve(true);
-              transaction.onerror = () => reject(transaction.error);
+              transaction.oncomplete = () => {
+                console.log(`IndexedDB save ${storeName}: success`);
+                resolve(true);
+              };
+              transaction.onerror = () => {
+                console.error(`IndexedDB save transaction error for ${storeName}:`, transaction.error);
+                reject(transaction.error);
+              };
             };
 
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+              console.error(`IndexedDB save request error for ${storeName}:`, request.error);
+              reject(request.error);
+            };
           });
         } catch (error) {
           console.error(`Error saving to ${storeName}:`, error);
@@ -183,9 +192,13 @@
             const request = store.get("data");
             request.onsuccess = () => {
               const result = request.result;
+              console.log(`IndexedDB load ${storeName}:`, result ? result.value : 'no data found');
               resolve(result ? result.value : defaultValue);
             };
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+              console.error(`IndexedDB load error for ${storeName}:`, request.error);
+              reject(request.error);
+            };
           });
         } catch (error) {
           console.error(`Error loading from ${storeName}:`, error);
@@ -1041,9 +1054,9 @@
 
               // Set state with loaded data or defaults
               const tasksToUse =
-                savedTasks && savedTasks.length > 0 ? savedTasks : initialTasks;
+                savedTasks && Array.isArray(savedTasks) && savedTasks.length > 0 ? savedTasks : initialTasks;
               const categoriesToUse =
-                savedCategories && savedCategories.length > 0
+                savedCategories && Array.isArray(savedCategories) && savedCategories.length > 0
                   ? savedCategories
                   : defaultCategories;
 
@@ -1053,11 +1066,11 @@
               setAttributions(savedAttributions || []);
 
               // If we had to use defaults, save them immediately
-              if (savedTasks.length === 0) {
+              if (!savedTasks || !Array.isArray(savedTasks) || savedTasks.length === 0) {
                 console.log("No saved tasks found, initializing with defaults");
                 await Storage.setTasks(tasksToUse);
               }
-              if (savedCategories.length === 0) {
+              if (!savedCategories || !Array.isArray(savedCategories) || savedCategories.length === 0) {
                 console.log(
                   "No saved categories found, initializing with defaults",
                 );
@@ -1067,10 +1080,16 @@
               // Handle authentication
               const storedHash = settings?.password;
               const sessionActive = settings?.session === "true";
-              console.log("Auth state:", { storedHash, sessionActive });
+              console.log("Auth state:", { storedHash, sessionActive, settings });
               setPasswordHash(storedHash);
               if (storedHash && sessionActive) {
                 setIsAuthenticated(true);
+              } else if (storedHash) {
+                // Hash exists but session is not active - this is expected behavior
+                console.log("Password exists but session inactive - user needs to log in");
+              } else {
+                // No password set up yet
+                console.log("No password configured - showing setup");
               }
 
               setDataLoaded(true);
@@ -1101,9 +1120,9 @@
 
                 if (backupTasks) {
                   const tasks = JSON.parse(backupTasks);
-                  setTasks(tasks.length > 0 ? tasks : initialTasks);
+                  setTasks(Array.isArray(tasks) && tasks.length > 0 ? tasks : initialTasks);
                   console.log("Tasks recovered from backup");
-                  if (tasks.length > 0) recoveredFromBackup = true;
+                  if (Array.isArray(tasks) && tasks.length > 0) recoveredFromBackup = true;
                 } else {
                   setTasks(initialTasks);
                 }
@@ -1111,10 +1130,10 @@
                 if (backupCategories) {
                   const categories = JSON.parse(backupCategories);
                   setCategories(
-                    categories.length > 0 ? categories : defaultCategories,
+                    Array.isArray(categories) && categories.length > 0 ? categories : defaultCategories,
                   );
                   console.log("Categories recovered from backup");
-                  if (categories.length > 0) recoveredFromBackup = true;
+                  if (Array.isArray(categories) && categories.length > 0) recoveredFromBackup = true;
                 } else {
                   setCategories(defaultCategories);
                 }
