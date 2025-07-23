@@ -160,11 +160,20 @@
 
             request.onsuccess = () => {
               // Wait for the transaction to complete
-              transaction.oncomplete = () => resolve(true);
-              transaction.onerror = () => reject(transaction.error);
+              transaction.oncomplete = () => {
+                console.log(`IndexedDB save ${storeName}: success`);
+                resolve(true);
+              };
+              transaction.onerror = () => {
+                console.error(`IndexedDB save transaction error for ${storeName}:`, transaction.error);
+                reject(transaction.error);
+              };
             };
 
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+              console.error(`IndexedDB save request error for ${storeName}:`, request.error);
+              reject(request.error);
+            };
           });
         } catch (error) {
           console.error(`Error saving to ${storeName}:`, error);
