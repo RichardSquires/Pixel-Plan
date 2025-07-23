@@ -183,9 +183,13 @@
             const request = store.get("data");
             request.onsuccess = () => {
               const result = request.result;
+              console.log(`IndexedDB load ${storeName}:`, result ? result.value : 'no data found');
               resolve(result ? result.value : defaultValue);
             };
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+              console.error(`IndexedDB load error for ${storeName}:`, request.error);
+              reject(request.error);
+            };
           });
         } catch (error) {
           console.error(`Error loading from ${storeName}:`, error);
