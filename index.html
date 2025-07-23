@@ -1723,7 +1723,15 @@ const HomePage = ({
         showCompletedTasks,
         toggleShowCompletedTasks,
       }) => {
-        const incompleteTasks = tasks.filter((t) => !t.completed);
+        // Sort incomplete tasks by due date (oldest first)
+        const incompleteTasks = tasks
+          .filter((t) => !t.completed)
+          .sort((a, b) => {
+            if (!a.dueDate) return 1; // Tasks without a due date go to the end
+            if (!b.dueDate) return -1;
+            return new Date(a.dueDate) - new Date(b.dueDate);
+          });
+
         const completedTasks = tasks.filter((t) => t.completed);
 
         const getCategoryName = (categoryId) => {
@@ -1796,7 +1804,6 @@ const HomePage = ({
           </div>
         );
       };
-
       const TaskItem = ({
         task,
         categoryName,
