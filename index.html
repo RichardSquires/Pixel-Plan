@@ -1711,7 +1711,7 @@ const renderPage = () => {
 
       // --- Page Components ---
 
-const HomePage = ({
+      const HomePage = ({
         tasks,
         categories,
         customIcons,
@@ -1723,14 +1723,30 @@ const HomePage = ({
         showCompletedTasks,
         toggleShowCompletedTasks,
       }) => {
-        // Sort incomplete tasks by due date (oldest first)
-        const incompleteTasks = tasks
+        const [collapsedDays, setCollapsedDays] = useState({});
+
+        const toggleDayCollapse = (day) => {
+          setCollapsedDays(prev => ({ ...prev, [day]: !prev[day] }));
+        };
+        
+        // 1. Group incomplete tasks by date
+        const groupedTasks = tasks
           .filter((t) => !t.completed)
-          .sort((a, b) => {
-            if (!a.dueDate) return 1; // Tasks without a due date go to the end
-            if (!b.dueDate) return -1;
-            return new Date(a.dueDate) - new Date(b.dueDate);
-          });
+          .reduce((acc, task) => {
+            const dateKey = task.dueDate || "No Due Date";
+            if (!acc[dateKey]) {
+              acc[dateKey] = [];
+            }
+            acc[dateKey].push(task);
+            return acc;
+          }, {});
+
+        // 2. Sort the date groups: "No Due Date" first, then by date
+        const sortedGroupKeys = Object.keys(groupedTasks).sort((a, b) => {
+          if (a === "No Due Date") return -1;
+          if (b === "No Due Date") return 1;
+          return new Date(a) - new Date(b);
+        });
 
         const completedTasks = tasks.filter((t) => t.completed);
 
@@ -1744,22 +1760,37 @@ const HomePage = ({
             <h2 className="text-2xl font-semibold mb-4 text-gray-700">
               In Progress
             </h2>
-            {incompleteTasks.length > 0 ? (
-              <div className="space-y-3">
-                {incompleteTasks.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    categoryName={getCategoryName(task.categoryId)}
-                    customIcons={customIcons}
-                    onToggle={onToggle}
-                    onToggleSubtask={onToggleSubtask}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onPostpone={onPostpone}
-                  />
-                ))}
-              </div>
+            {sortedGroupKeys.length > 0 ? (
+              sortedGroupKeys.map(dateKey => (
+                <div key={dateKey} className="mb-4">
+                  <div 
+                    className="flex justify-between items-center bg-purple-200 p-2 rounded-lg cursor-pointer"
+                    onClick={() => toggleDayCollapse(dateKey)}
+                  >
+                    <h3 className="text-lg font-bold text-purple-700">
+                      {dateKey === "No Due Date" ? "No Due Date" : formatDate(dateKey)}
+                    </h3>
+                    {collapsedDays[dateKey] ? <ArrowDownIcon /> : <ArrowUpIcon />}
+                  </div>
+                  {!collapsedDays[dateKey] && (
+                    <div className="space-y-3 mt-2">
+                      {groupedTasks[dateKey].map((task) => (
+                        <TaskItem
+                          key={task.id}
+                          task={task}
+                          categoryName={getCategoryName(task.categoryId)}
+                          customIcons={customIcons}
+                          onToggle={onToggle}
+                          onToggleSubtask={onToggleSubtask}
+                          onDelete={onDelete}
+                          onEdit={onEdit}
+                          onPostpone={onPostpone}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
             ) : (
               <p className="text-gray-500 italic">
                 No tasks in progress. Add one!
@@ -1804,6 +1835,7 @@ const HomePage = ({
           </div>
         );
       };
+      
       const TaskItem = ({
         task,
         categoryName,
