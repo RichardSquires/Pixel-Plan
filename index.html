@@ -1041,9 +1041,9 @@
 
               // Set state with loaded data or defaults
               const tasksToUse =
-                savedTasks && savedTasks.length > 0 ? savedTasks : initialTasks;
+                savedTasks && Array.isArray(savedTasks) && savedTasks.length > 0 ? savedTasks : initialTasks;
               const categoriesToUse =
-                savedCategories && savedCategories.length > 0
+                savedCategories && Array.isArray(savedCategories) && savedCategories.length > 0
                   ? savedCategories
                   : defaultCategories;
 
@@ -1053,11 +1053,11 @@
               setAttributions(savedAttributions || []);
 
               // If we had to use defaults, save them immediately
-              if (savedTasks.length === 0) {
+              if (!savedTasks || !Array.isArray(savedTasks) || savedTasks.length === 0) {
                 console.log("No saved tasks found, initializing with defaults");
                 await Storage.setTasks(tasksToUse);
               }
-              if (savedCategories.length === 0) {
+              if (!savedCategories || !Array.isArray(savedCategories) || savedCategories.length === 0) {
                 console.log(
                   "No saved categories found, initializing with defaults",
                 );
