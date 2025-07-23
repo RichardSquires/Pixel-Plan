@@ -988,7 +988,11 @@
         const [isAuthenticated, setIsAuthenticated] = useState(false);
         const [passwordHash, setPasswordHash] = useState(null);
         const [dataLoaded, setDataLoaded] = useState(false);
-
+        const [showCompletedTasks, setShowCompletedTasks] = useState(true);
+        const toggleShowCompletedTasks = () => {
+          setShowCompletedTasks(!showCompletedTasks);
+        };
+        
         // Simple hashing function (for demonstration only - NOT for production)
         const simpleHash = (str) => {
           let hash = 0;
@@ -1331,6 +1335,7 @@
                         id: generateId(),
                         completed: false,
                         dueDate: nextDueDate,
+                        reminderDate: nextDueDate, // This line is the fix!
                         subtasks: completedTask.subtasks.map(st => ({ ...st, id: generateId(), completed: false })),
                     };
                     setTasks([newTask, ...newTasks]);
@@ -1405,7 +1410,7 @@
           );
         };
 
-        const renderPage = () => {
+const renderPage = () => {
           switch (page) {
             case "tasks":
               return (
@@ -1418,6 +1423,8 @@
                   onDelete={handleDeleteTask}
                   onEdit={startEditing}
                   onPostpone={handlePostponeTask}
+                  showCompletedTasks={showCompletedTasks}
+                  toggleShowCompletedTasks={toggleShowCompletedTasks}
                 />
               );
             case "add":
@@ -1495,6 +1502,8 @@
                   onDelete={handleDeleteTask}
                   onEdit={startEditing}
                   onPostpone={handlePostponeTask}
+                  showCompletedTasks={showCompletedTasks}
+                  toggleShowCompletedTasks={toggleShowCompletedTasks}
                 />
               );
           }
@@ -1702,7 +1711,7 @@
 
       // --- Page Components ---
 
-      const HomePage = ({
+const HomePage = ({
         tasks,
         categories,
         customIcons,
@@ -1711,6 +1720,8 @@
         onDelete,
         onEdit,
         onPostpone,
+        showCompletedTasks,
+        toggleShowCompletedTasks,
       }) => {
         const incompleteTasks = tasks.filter((t) => !t.completed);
         const completedTasks = tasks.filter((t) => t.completed);
@@ -1747,27 +1758,40 @@
               </p>
             )}
 
-            <h2 className="text-2xl font-semibold my-4 pt-4 border-t border-gray-200 text-gray-700">
-              Completed
-            </h2>
-            {completedTasks.length > 0 ? (
-              <div className="space-y-3">
-                {completedTasks.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    categoryName={getCategoryName(task.categoryId)}
-                    customIcons={customIcons}
-                    onToggle={onToggle}
-                    onToggleSubtask={onToggleSubtask}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onPostpone={onPostpone}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 italic">No tasks completed yet.</p>
+            <div className="flex justify-between items-center my-4 pt-4 border-t border-gray-200">
+              <h2 className="text-2xl font-semibold text-gray-700">
+                Completed
+              </h2>
+              <button
+                onClick={toggleShowCompletedTasks}
+                className="text-purple-500 font-semibold"
+              >
+                {showCompletedTasks ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            {showCompletedTasks && (
+              <>
+                {completedTasks.length > 0 ? (
+                  <div className="space-y-3">
+                    {completedTasks.map((task) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        categoryName={getCategoryName(task.categoryId)}
+                        customIcons={customIcons}
+                        onToggle={onToggle}
+                        onToggleSubtask={onToggleSubtask}
+                        onDelete={onDelete}
+                        onEdit={onEdit}
+                        onPostpone={onPostpone}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">No tasks completed yet.</p>
+                )}
+              </>
             )}
           </div>
         );
@@ -2216,7 +2240,7 @@
                     <option value="no-schedule">No schedule</option>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
-                    <option value="every-x-weeks">Every X Weeks</option>
+                    <option value="every-x-weeks">Every X weeks</option>
                     <option value="monthly">Monthly</option>
                     <option value="specific-days">On certain days</option>
                   </select>
