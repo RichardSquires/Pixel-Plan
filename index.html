@@ -1067,10 +1067,16 @@
               // Handle authentication
               const storedHash = settings?.password;
               const sessionActive = settings?.session === "true";
-              console.log("Auth state:", { storedHash, sessionActive });
+              console.log("Auth state:", { storedHash, sessionActive, settings });
               setPasswordHash(storedHash);
               if (storedHash && sessionActive) {
                 setIsAuthenticated(true);
+              } else if (storedHash) {
+                // Hash exists but session is not active - this is expected behavior
+                console.log("Password exists but session inactive - user needs to log in");
+              } else {
+                // No password set up yet
+                console.log("No password configured - showing setup");
               }
 
               setDataLoaded(true);
