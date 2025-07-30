@@ -1402,19 +1402,43 @@
           setTimeout(() => setShowToast(false), 3000);
         };
 
-        const handleAddTask = (task) => {
-          setTasks([task, ...tasks]);
-          triggerToast("Task added successfully!");
+        const handleAddTask = async (task) => {
+          const newTasks = [task, ...tasks];
+          setTasks(newTasks);
+
+          // Force immediate save for new tasks
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ New task saved immediately");
+            triggerToast("Task added successfully!");
+          } catch (error) {
+            console.error("Failed to save new task immediately:", error);
+            // Emergency backup
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task added (backup saved)!");
+          }
+
           setPage("tasks");
         };
 
-        const handleUpdateTask = (updatedTask) => {
-          setTasks(
-            tasks.map((task) =>
-              task.id === updatedTask.id ? updatedTask : task,
-            ),
+        const handleUpdateTask = async (updatedTask) => {
+          const newTasks = tasks.map((task) =>
+            task.id === updatedTask.id ? updatedTask : task,
           );
-          triggerToast("Task updated successfully!");
+          setTasks(newTasks);
+
+          // Force immediate save for updated tasks
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Updated task saved immediately");
+            triggerToast("Task updated successfully!");
+          } catch (error) {
+            console.error("Failed to save updated task immediately:", error);
+            // Emergency backup
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task updated (backup saved)!");
+          }
+
           setEditingTask(null);
           setPage("tasks");
         };
