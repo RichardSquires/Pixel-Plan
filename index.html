@@ -1203,6 +1203,159 @@
           return () => clearInterval(backupInterval);
         }, []);
 
+        // Request notification permission on app load
+        useEffect(() => {
+          const requestNotificationPermission = async () => {
+            if ('Notification' in window && Notification.permission === 'default') {
+              try {
+                const permission = await Notification.requestPermission();
+                setNotificationPermission(permission);
+                if (permission === 'granted') {
+                  console.log('✅ Notification permission granted');
+                  triggerToast('📱 Notifications enabled for reminders!');
+                }
+              } catch (error) {
+                console.error('Failed to request notification permission:', error);
+              }
+            } else {
+              setNotificationPermission(Notification.permission);
+            }
+          };
+
+          // Only request permission after data is loaded and user is authenticated
+          if (dataLoaded && isAuthenticated) {
+            requestNotificationPermission();
+          }
+        }, [dataLoaded, isAuthenticated]);
+
+        // Notification scheduling system
+        const scheduleNotification = (task) => {
+          if (!task.reminderOn || !task.reminderDate || !task.reminderTime) {
+            return;
+          }
+
+          const reminderDateTime = new Date(`${task.reminderDate}T${convertTimeToISO(task.reminderTime)}`);
+          const now = new Date();
+          const timeDiff = reminderDateTime.getTime() - now.getTime();
+
+          // Clear existing notification for this task
+          if (notificationTimeouts.current.has(task.id)) {
+            clearTimeout(notificationTimeouts.current.get(task.id));
+          }
+
+          // Only schedule if the reminder is in the future
+          if (timeDiff > 0) {
+            console.log(`📅 Scheduling notification for task "${task.content}" at ${reminderDateTime.toLocaleString()}`);
+
+            const timeoutId = setTimeout(() => {
+              showTaskNotification(task);
+              notificationTimeouts.current.delete(task.id);
+            }, timeDiff);
+
+            notificationTimeouts.current.set(task.id, timeoutId);
+          }
+        };
+
+        // Convert time formats like "2:30 PM" to "14:30"
+        const convertTimeToISO = (timeString) => {
+          if (!timeString) return '12:00';
+
+          const [time, period] = timeString.split(' ');
+          let [hours, minutes] = time.split(':');
+
+          hours = parseInt(hours);
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
+
+          return `${hours.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+        };
+
+        // Show notification for a task
+        const showTaskNotification = async (task) => {
+          if (Notification.permission !== 'granted') {
+            console.warn('Cannot show notification - permission not granted');
+            return;
+          }
+
+          try {
+            // Try to use service worker notification first
+            if ('serviceWorker' in navigator) {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification(`📋 Task Reminder: ${task.content}`, {
+                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}\nTime: ${task.time || 'No specific time'}`,
+                icon: './icon-192x192.png',
+                badge: './icon-192x192.png',
+                vibrate: [200, 100, 200, 100, 200],
+                requireInteraction: true,
+                actions: [
+                  {
+                    action: 'complete',
+                    title: '✅ Mark Complete',
+                    icon: './icon-192x192.png'
+                  },
+                  {
+                    action: 'postpone',
+                    title: '⏰ Postpone',
+                    icon: './icon-192x192.png'
+                  }
+                ],
+                data: {
+                  taskId: task.id,
+                  action: 'reminder'
+                },
+                tag: `task-reminder-${task.id}`
+              });
+              console.log(`✅ Service worker notification shown for task: ${task.content}`);
+            } else {
+              // Fallback to regular notification
+              const notification = new Notification(`📋 Task Reminder: ${task.content}`, {
+                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}`,
+                icon: './icon-192x192.png',
+                requireInteraction: true
+              });
+
+              notification.onclick = () => {
+                window.focus();
+                notification.close();
+              };
+
+              console.log(`✅ Regular notification shown for task: ${task.content}`);
+            }
+          } catch (error) {
+            console.error('Failed to show notification:', error);
+          }
+        };
+
+        // Schedule all task reminders when tasks change
+        useEffect(() => {
+          if (dataLoaded && isAuthenticated && notificationPermission === 'granted') {
+            // Clear all existing timeouts
+            notificationTimeouts.current.forEach((timeoutId) => {
+              clearTimeout(timeoutId);
+            });
+            notificationTimeouts.current.clear();
+
+            // Schedule notifications for all tasks with reminders
+            tasks.forEach(task => {
+              if (!task.completed && task.reminderOn) {
+                scheduleNotification(task);
+              }
+            });
+
+            console.log(`📅 Scheduled ${notificationTimeouts.current.size} notification reminders`);
+          }
+        }, [tasks, dataLoaded, isAuthenticated, notificationPermission]);
+
+        // Cleanup notifications on unmount
+        useEffect(() => {
+          return () => {
+            notificationTimeouts.current.forEach((timeoutId) => {
+              clearTimeout(timeoutId);
+            });
+            notificationTimeouts.current.clear();
+          };
+        }, []);
+
         const handleLogin = async (password) => {
           if (simpleHash(password) === passwordHash) {
             await Storage.setSetting("session", "true");
