@@ -1249,35 +1249,6 @@
   }
 };
 
-          try {
-            const reminderDateTime = new Date(`${task.reminderDate}T${convertTimeToISO(task.reminderTime)}`);
-            const now = new Date();
-            const timeDiff = reminderDateTime.getTime() - now.getTime();
-
-            // Clear existing notification for this task
-            if (notificationTimeouts.current.has(task.id)) {
-              clearTimeout(notificationTimeouts.current.get(task.id));
-              console.log(`🔄 Cleared existing notification for task: ${task.content}`);
-            }
-
-            // Only schedule if the reminder is in the future
-            if (timeDiff > 0) {
-              console.log(`📅 Scheduling notification for task "${task.content}" at ${reminderDateTime.toLocaleString()} (in ${Math.round(timeDiff / 1000 / 60)} minutes)`);
-
-              const timeoutId = setTimeout(() => {
-                console.log(`🔔 Triggering notification for task: ${task.content}`);
-                showTaskNotification(task);
-                notificationTimeouts.current.delete(task.id);
-              }, timeDiff);
-
-              notificationTimeouts.current.set(task.id, timeoutId);
-            } else {
-              console.log(`⏰ Reminder time for task "${task.content}" is in the past, not scheduling`);
-            }
-          } catch (error) {
-            console.error(`❌ Failed to schedule notification for task "${task.content}":`, error);
-          }
-        };
 
         // Convert time formats like "2:30 PM" to "14:30"
         const convertTimeToISO = (timeString) => {
