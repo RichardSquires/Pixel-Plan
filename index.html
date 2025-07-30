@@ -339,6 +339,24 @@
             console.warn(`LocalStorage backup load failed for ${key}:`, error);
           }
 
+          // Try emergency backups
+          try {
+            const emergencyKey = `emergency-backup-${key}`;
+            const emergencyData = localStorage.getItem(emergencyKey);
+            if (emergencyData) {
+              const parsed = JSON.parse(emergencyData);
+              const timestamp = localStorage.getItem('emergency-backup-timestamp');
+              console.log(
+                `Restored ${key} from emergency backup (timestamp: ${timestamp})`,
+              );
+              // Clear emergency backup after successful restore
+              localStorage.removeItem(emergencyKey);
+              return parsed;
+            }
+          } catch (error) {
+            console.warn(`Emergency backup load failed for ${key}:`, error);
+          }
+
           // Try timestamped backups as last resort
           try {
             const keys = Object.keys(localStorage).filter((k) =>
