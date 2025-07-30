@@ -2791,9 +2791,17 @@ const renderPage = () => {
                 {/* Reminder Section */}
                 <div className="pt-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Reminder
-                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Reminder
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {Notification.permission === 'granted'
+                          ? '🔔 Notifications enabled - you\'ll get alerts'
+                          : '⚠️ Enable notifications in Settings for alerts'
+                        }
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setReminderOn(!reminderOn)}
