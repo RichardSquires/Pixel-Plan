@@ -1653,6 +1653,12 @@
           );
           setTasks(newTasks);
 
+          // Immediately schedule notification for the updated task if it has a reminder
+          if (updatedTask.reminderOn && notificationPermission === 'granted' && isAuthenticated) {
+            console.log(`🔄 Immediately scheduling notification for updated task: ${updatedTask.content}`);
+            scheduleNotification(updatedTask);
+          }
+
           // Force immediate save for updated tasks
           try {
             await Storage.setTasks(newTasks);
