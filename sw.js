@@ -173,11 +173,44 @@ self.addEventListener("push", (event) => {
 
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
-  console.log("Service Worker: Notification click received");
+  console.log("Service Worker: Notification click received", event.action);
 
   event.notification.close();
 
   if (event.action === "explore") {
+    event.waitUntil(clients.openWindow("./"));
+  } else if (event.action === "complete") {
+    // Handle task completion
+    event.waitUntil(
+      clients.matchAll().then((clientList) => {
+        if (clientList.length > 0) {
+          clientList[0].postMessage({
+            type: 'COMPLETE_TASK',
+            taskId: event.notification.data.taskId
+          });
+          return clientList[0].focus();
+        } else {
+          return clients.openWindow("./");
+        }
+      })
+    );
+  } else if (event.action === "postpone") {
+    // Handle task postponement
+    event.waitUntil(
+      clients.matchAll().then((clientList) => {
+        if (clientList.length > 0) {
+          clientList[0].postMessage({
+            type: 'POSTPONE_TASK',
+            taskId: event.notification.data.taskId
+          });
+          return clientList[0].focus();
+        } else {
+          return clients.openWindow("./");
+        }
+      })
+    );
+  } else {
+    // Default action - open app
     event.waitUntil(clients.openWindow("./"));
   }
 });

@@ -339,6 +339,24 @@
             console.warn(`LocalStorage backup load failed for ${key}:`, error);
           }
 
+          // Try emergency backups
+          try {
+            const emergencyKey = `emergency-backup-${key}`;
+            const emergencyData = localStorage.getItem(emergencyKey);
+            if (emergencyData) {
+              const parsed = JSON.parse(emergencyData);
+              const timestamp = localStorage.getItem('emergency-backup-timestamp');
+              console.log(
+                `Restored ${key} from emergency backup (timestamp: ${timestamp})`,
+              );
+              // Clear emergency backup after successful restore
+              localStorage.removeItem(emergencyKey);
+              return parsed;
+            }
+          } catch (error) {
+            console.warn(`Emergency backup load failed for ${key}:`, error);
+          }
+
           // Try timestamped backups as last resort
           try {
             const keys = Object.keys(localStorage).filter((k) =>
@@ -1185,6 +1203,191 @@
           return () => clearInterval(backupInterval);
         }, []);
 
+        // Monitor notification permission changes and update status
+        useEffect(() => {
+          const checkNotificationPermission = () => {
+            if ('Notification' in window) {
+              setNotificationPermission(Notification.permission);
+            }
+          };
+
+          // Check permission initially
+          checkNotificationPermission();
+
+          // Check permission periodically (in case user changes it in browser settings)
+          const interval = setInterval(checkNotificationPermission, 5000);
+
+          return () => clearInterval(interval);
+        }, []);
+
+        // Automatically request permission if default and user is authenticated
+        useEffect(() => {
+          const requestInitialNotificationPermission = async () => {
+            if ('Notification' in window && Notification.permission === 'default' && dataLoaded && isAuthenticated) {
+              console.log('🔔 Requesting notification permission for task reminders...');
+              // Don't auto-request, let user explicitly enable it
+              // This respects user choice and prevents permission fatigue
+            }
+          };
+
+          requestInitialNotificationPermission();
+        }, [dataLoaded, isAuthenticated]);
+
+        // Notification scheduling system
+        const scheduleNotification = (task) => {
+          if (!task.reminderOn || !task.reminderDate || !task.reminderTime) {
+            return;
+          }
+
+          const reminderDateTime = new Date(`${task.reminderDate}T${convertTimeToISO(task.reminderTime)}`);
+          const now = new Date();
+          const timeDiff = reminderDateTime.getTime() - now.getTime();
+
+          // Clear existing notification for this task
+          if (notificationTimeouts.current.has(task.id)) {
+            clearTimeout(notificationTimeouts.current.get(task.id));
+          }
+
+          // Only schedule if the reminder is in the future
+          if (timeDiff > 0) {
+            console.log(`📅 Scheduling notification for task "${task.content}" at ${reminderDateTime.toLocaleString()}`);
+
+            const timeoutId = setTimeout(() => {
+              showTaskNotification(task);
+              notificationTimeouts.current.delete(task.id);
+            }, timeDiff);
+
+            notificationTimeouts.current.set(task.id, timeoutId);
+          }
+        };
+
+        // Convert time formats like "2:30 PM" to "14:30"
+        const convertTimeToISO = (timeString) => {
+          if (!timeString) return '12:00';
+
+          const [time, period] = timeString.split(' ');
+          let [hours, minutes] = time.split(':');
+
+          hours = parseInt(hours);
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
+
+          return `${hours.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+        };
+
+        // Show notification for a task
+        const showTaskNotification = async (task) => {
+          if (Notification.permission !== 'granted') {
+            console.warn('Cannot show notification - permission not granted');
+            return;
+          }
+
+          try {
+            // Try to use service worker notification first
+            if ('serviceWorker' in navigator) {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification(`���� Task Reminder: ${task.content}`, {
+                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}\nTime: ${task.time || 'No specific time'}`,
+                icon: './icon-192x192.png',
+                badge: './icon-192x192.png',
+                vibrate: [200, 100, 200, 100, 200],
+                requireInteraction: true,
+                actions: [
+                  {
+                    action: 'complete',
+                    title: '✅ Mark Complete',
+                    icon: './icon-192x192.png'
+                  },
+                  {
+                    action: 'postpone',
+                    title: '⏰ Postpone',
+                    icon: './icon-192x192.png'
+                  }
+                ],
+                data: {
+                  taskId: task.id,
+                  action: 'reminder'
+                },
+                tag: `task-reminder-${task.id}`
+              });
+              console.log(`✅ Service worker notification shown for task: ${task.content}`);
+            } else {
+              // Fallback to regular notification
+              const notification = new Notification(`📋 Task Reminder: ${task.content}`, {
+                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}`,
+                icon: './icon-192x192.png',
+                requireInteraction: true
+              });
+
+              notification.onclick = () => {
+                window.focus();
+                notification.close();
+              };
+
+              console.log(`✅ Regular notification shown for task: ${task.content}`);
+            }
+          } catch (error) {
+            console.error('Failed to show notification:', error);
+          }
+        };
+
+        // Schedule all task reminders when tasks change
+        useEffect(() => {
+          if (dataLoaded && isAuthenticated && notificationPermission === 'granted') {
+            // Clear all existing timeouts
+            notificationTimeouts.current.forEach((timeoutId) => {
+              clearTimeout(timeoutId);
+            });
+            notificationTimeouts.current.clear();
+
+            // Schedule notifications for all tasks with reminders
+            tasks.forEach(task => {
+              if (!task.completed && task.reminderOn) {
+                scheduleNotification(task);
+              }
+            });
+
+            console.log(`📅 Scheduled ${notificationTimeouts.current.size} notification reminders`);
+          }
+        }, [tasks, dataLoaded, isAuthenticated, notificationPermission]);
+
+        // Handle service worker messages from notification actions
+        useEffect(() => {
+          const handleMessage = (event) => {
+            const { data } = event;
+
+            if (data.type === 'COMPLETE_TASK') {
+              console.log('📱 Completing task from notification:', data.taskId);
+              toggleTaskCompletion(data.taskId);
+              triggerToast('✅ Task completed from notification!');
+            } else if (data.type === 'POSTPONE_TASK') {
+              console.log('📱 Postponing task from notification:', data.taskId);
+              handlePostponeTask(data.taskId);
+              triggerToast('⏰ Task postponed from notification!');
+            }
+          };
+
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleMessage);
+          }
+
+          return () => {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.removeEventListener('message', handleMessage);
+            }
+          };
+        }, [tasks]);
+
+        // Cleanup notifications on unmount
+        useEffect(() => {
+          return () => {
+            notificationTimeouts.current.forEach((timeoutId) => {
+              clearTimeout(timeoutId);
+            });
+            notificationTimeouts.current.clear();
+          };
+        }, []);
+
         const handleLogin = async (password) => {
           if (simpleHash(password) === passwordHash) {
             await Storage.setSetting("session", "true");
@@ -1208,58 +1411,197 @@
           setPage("tasks");
         };
 
-        // Auto-save data to IndexedDB when state changes
+        // Track pending saves to ensure they complete before app closes
+        const pendingSaves = useRef(new Set());
+
+        // Notification scheduling system
+        const notificationTimeouts = useRef(new Map());
+        const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+
+        // Force save all data immediately and wait for completion
+        const forceImmediateSave = async () => {
+          console.log("Force saving all data immediately...");
+          try {
+            await Promise.all([
+              Storage.setTasks(tasks),
+              Storage.setCategories(categories),
+              Storage.setCustomIcons(customIcons),
+              Storage.setAttributions(attributions)
+            ]);
+            console.log("✅ All data force saved successfully");
+            return true;
+          } catch (error) {
+            console.error("❌ Force save failed:", error);
+            return false;
+          }
+        };
+
+        // Auto-save data to IndexedDB when state changes with improved error handling
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `tasks-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving tasks to IndexedDB:", tasks);
+
             Storage.setTasks(tasks)
               .then((result) => {
                 console.log("Tasks saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save tasks:", error);
+                pendingSaves.current.delete(saveId);
+                // Fallback to localStorage on IndexedDB failure
+                try {
+                  localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                  console.log("Tasks emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [tasks, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `categories-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving categories to IndexedDB:", categories);
+
             Storage.setCategories(categories)
               .then((result) => {
                 console.log("Categories saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save categories:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                  console.log("Categories emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [categories, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `customIcons-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving custom icons to IndexedDB:", customIcons);
+
             Storage.setCustomIcons(customIcons)
               .then((result) => {
                 console.log("Custom icons saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save custom icons:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-customIcons', JSON.stringify(customIcons));
+                  console.log("Custom icons emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [customIcons, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `attributions-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving attributions to IndexedDB:", attributions);
+
             Storage.setAttributions(attributions)
               .then((result) => {
                 console.log("Attributions saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save attributions:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-attributions', JSON.stringify(attributions));
+                  console.log("Attributions emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [attributions, dataLoaded]);
+
+        // Add beforeunload handler to save data when app is closing
+        useEffect(() => {
+          const handleBeforeUnload = async (event) => {
+            console.log("App is closing, attempting to save data...");
+
+            // Check if there are pending saves
+            if (pendingSaves.current.size > 0) {
+              console.log(`Warning: ${pendingSaves.current.size} saves still pending`);
+            }
+
+            // Force immediate save with limited time
+            try {
+              // Use a Promise.race to timeout after 2 seconds
+              const savePromise = forceImmediateSave();
+              const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 2000));
+
+              const result = await Promise.race([savePromise, timeoutPromise]);
+
+              if (result) {
+                console.log("✅ Data saved successfully before app close");
+              } else {
+                console.log("⚠️ Save timed out, using emergency backup");
+                // Emergency backup to localStorage
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                localStorage.setItem('emergency-backup-customIcons', JSON.stringify(customIcons));
+                localStorage.setItem('emergency-backup-attributions', JSON.stringify(attributions));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
+              }
+            } catch (error) {
+              console.error("Error during beforeunload save:", error);
+              // Final emergency backup
+              try {
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
+              } catch (emergencyError) {
+                console.error("Emergency backup failed:", emergencyError);
+              }
+            }
+          };
+
+          const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+              console.log("Page hidden, saving data...");
+              forceImmediateSave().catch(error =>
+                console.error("Save on visibility change failed:", error)
+              );
+            }
+          };
+
+          window.addEventListener('beforeunload', handleBeforeUnload);
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+
+          // Also save on page focus loss (additional safety net)
+          window.addEventListener('blur', () => {
+            console.log("Window lost focus, saving data...");
+            forceImmediateSave().catch(error =>
+              console.error("Save on blur failed:", error)
+            );
+          });
+
+          return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', forceImmediateSave);
+          };
+        }, [tasks, categories, customIcons, attributions, dataLoaded]);
 
         const triggerToast = (message) => {
           setToastMessage(message);
@@ -1267,19 +1609,43 @@
           setTimeout(() => setShowToast(false), 3000);
         };
 
-        const handleAddTask = (task) => {
-          setTasks([task, ...tasks]);
-          triggerToast("Task added successfully!");
+        const handleAddTask = async (task) => {
+          const newTasks = [task, ...tasks];
+          setTasks(newTasks);
+
+          // Force immediate save for new tasks
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ New task saved immediately");
+            triggerToast("Task added successfully!");
+          } catch (error) {
+            console.error("Failed to save new task immediately:", error);
+            // Emergency backup
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task added (backup saved)!");
+          }
+
           setPage("tasks");
         };
 
-        const handleUpdateTask = (updatedTask) => {
-          setTasks(
-            tasks.map((task) =>
-              task.id === updatedTask.id ? updatedTask : task,
-            ),
+        const handleUpdateTask = async (updatedTask) => {
+          const newTasks = tasks.map((task) =>
+            task.id === updatedTask.id ? updatedTask : task,
           );
-          triggerToast("Task updated successfully!");
+          setTasks(newTasks);
+
+          // Force immediate save for updated tasks
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Updated task saved immediately");
+            triggerToast("Task updated successfully!");
+          } catch (error) {
+            console.error("Failed to save updated task immediately:", error);
+            // Emergency backup
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task updated (backup saved)!");
+          }
+
           setEditingTask(null);
           setPage("tasks");
         };
@@ -1336,7 +1702,7 @@
             return nextDueDate.toISOString().split('T')[0];
         };
         
-        const toggleTaskCompletion = (taskId) => {
+        const toggleTaskCompletion = async (taskId) => {
             let completedTask = null;
             const newTasks = tasks.map(task => {
                 if (task.id === taskId) {
@@ -1346,6 +1712,8 @@
                 return task;
             });
 
+            let finalTasks = newTasks;
+
             if (completedTask && completedTask.completed && completedTask.recurrence && completedTask.recurrence.type !== 'no-schedule') {
                 const nextDueDate = calculateNextDueDate(completedTask.dueDate, completedTask.recurrence);
                 if (nextDueDate) {
@@ -1354,15 +1722,24 @@
                         id: generateId(),
                         completed: false,
                         dueDate: nextDueDate,
-                        reminderDate: nextDueDate, // This line is the fix!
+                        reminderDate: nextDueDate,
                         subtasks: completedTask.subtasks.map(st => ({ ...st, id: generateId(), completed: false })),
                     };
-                    setTasks([newTask, ...newTasks]);
-                } else {
-                    setTasks(newTasks);
+                    finalTasks = [newTask, ...newTasks];
                 }
-            } else {
-                setTasks(newTasks);
+            }
+
+            setTasks(finalTasks);
+
+            // Force immediate save when task completion changes
+            try {
+                await Storage.setTasks(finalTasks);
+                console.log("✅ Task completion change saved immediately");
+            } catch (error) {
+                console.error("Failed to save task completion change immediately:", error);
+                // Emergency backup
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(finalTasks));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
             }
         };
 
@@ -1383,25 +1760,46 @@
           );
         };
 
-        const handlePostponeTask = (taskId) => {
-          setTasks(
-            tasks.map((task) => {
-              if (task.id === taskId) {
-                const today = new Date();
-                const tomorrow = new Date(today);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const formattedDate = tomorrow.toISOString().split("T")[0];
-                return { ...task, dueDate: formattedDate };
-              }
-              return task;
-            }),
-          );
-          triggerToast("Task postponed to tomorrow!");
+        const handlePostponeTask = async (taskId) => {
+          const newTasks = tasks.map((task) => {
+            if (task.id === taskId) {
+              const today = new Date();
+              const tomorrow = new Date(today);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const formattedDate = tomorrow.toISOString().split("T")[0];
+              return { ...task, dueDate: formattedDate };
+            }
+            return task;
+          });
+
+          setTasks(newTasks);
+
+          // Force immediate save when task is postponed
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Task postpone saved immediately");
+            triggerToast("Task postponed to tomorrow!");
+          } catch (error) {
+            console.error("Failed to save task postpone immediately:", error);
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task postponed (backup saved)!");
+          }
         };
 
-        const handleDeleteTask = (taskId) => {
-          setTasks(tasks.filter((task) => task.id !== taskId));
-          triggerToast("Task deleted.");
+        const handleDeleteTask = async (taskId) => {
+          const newTasks = tasks.filter((task) => task.id !== taskId);
+          setTasks(newTasks);
+
+          // Force immediate save when task is deleted
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Task deletion saved immediately");
+            triggerToast("Task deleted.");
+          } catch (error) {
+            console.error("Failed to save task deletion immediately:", error);
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task deleted (backup saved).");
+          }
         };
 
         const startEditing = (task) => {
@@ -2393,9 +2791,17 @@ const renderPage = () => {
                 {/* Reminder Section */}
                 <div className="pt-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Reminder
-                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Reminder
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {Notification.permission === 'granted'
+                          ? '🔔 Notifications enabled - you\'ll get alerts'
+                          : '⚠️ Enable notifications in Settings for alerts'
+                        }
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setReminderOn(!reminderOn)}
@@ -3484,26 +3890,61 @@ const renderPage = () => {
 
         const requestNotificationPermission = async () => {
           if (!("Notification" in window)) {
-            alert("This browser does not support desktop notification");
+            alert("This browser does not support desktop notifications");
             return;
           }
 
           if (Notification.permission === "granted") {
-            alert("Notifications are already enabled!");
+            // Test notification to show it's working
+            try {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification("Pixel Plan - Test Notification", {
+                body: "Notifications are working! You'll receive reminders for your tasks.",
+                icon: "icon-192x192.png",
+                badge: "icon-192x192.png",
+                vibrate: [200, 100, 200],
+                requireInteraction: false,
+                tag: 'test-notification'
+              });
+            } catch (error) {
+              console.error("Failed to show test notification:", error);
+              alert("Notifications are enabled, but there was an error showing the test notification.");
+            }
             return;
           }
 
-          const permission = await Notification.requestPermission();
-          setPermissionStatus(permission);
+          if (Notification.permission === "denied") {
+            alert("Notifications are blocked. Please enable them in your browser settings to receive task reminders.");
+            return;
+          }
 
-          if (permission === "granted") {
-            navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification("Pixel Plan", {
-                body: "Notifications have been enabled!",
+          try {
+            const permission = await Notification.requestPermission();
+            setPermissionStatus(permission);
+
+            if (permission === "granted") {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification("Pixel Plan - Notifications Enabled!", {
+                body: "Great! You'll now receive reminders for your tasks. Create a task with a reminder to test it out.",
                 icon: "icon-192x192.png",
+                badge: "icon-192x192.png",
                 vibrate: [200, 100, 200],
+                requireInteraction: true,
+                actions: [
+                  {
+                    action: 'explore',
+                    title: '📋 Create Task',
+                    icon: 'icon-192x192.png'
+                  }
+                ],
+                tag: 'welcome-notification'
               });
-            });
+            } else if (permission === "denied") {
+              alert("Notifications were denied. You can enable them later in your browser settings.");
+            }
+          } catch (error) {
+            console.error("Error requesting notification permission:", error);
+            alert("There was an error requesting notification permission. Please try again.");
           }
         };
 
@@ -3616,28 +4057,62 @@ const renderPage = () => {
             <div className="space-y-4">
               <div className="pt-4 border-t border-gray-200">
                 <h3 className="text-lg font-medium mb-2">App Settings</h3>
-                <button
-                  onClick={requestNotificationPermission}
-                  disabled={permissionStatus === "denied"}
-                  className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:bg-gray-200 disabled:cursor-not-allowed transition-colors"
-                >
-                  <span className="font-medium text-gray-700">
-                    Notifications
-                  </span>
-                  <BellIcon
-                    colorClass={
-                      permissionStatus === "granted"
-                        ? "text-green-500"
-                        : "text-gray-400"
-                    }
-                  />
-                </button>
-                {permissionStatus === "denied" && (
-                  <p className="text-red-500 text-sm mt-2">
-                    You have blocked notifications. You'll need to enable them
-                    in your browser settings.
-                  </p>
-                )}
+                <div className="space-y-3">
+                  <button
+                    onClick={requestNotificationPermission}
+                    disabled={permissionStatus === "denied"}
+                    className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:bg-gray-200 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium text-gray-700">
+                        Task Reminder Notifications
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {permissionStatus === "granted" && "��� Enabled - Click to test"}
+                        {permissionStatus === "denied" && "❌ Blocked"}
+                        {permissionStatus === "default" && "⚠️ Click to enable"}
+                      </span>
+                    </div>
+                    <BellIcon
+                      colorClass={
+                        permissionStatus === "granted"
+                          ? "text-green-500"
+                          : permissionStatus === "denied"
+                          ? "text-red-500"
+                          : "text-gray-400"
+                      }
+                    />
+                  </button>
+
+                  {permissionStatus === "denied" && (
+                    <div className="bg-red-50 p-3 rounded-lg">
+                      <p className="text-red-700 text-sm">
+                        <strong>Notifications Blocked:</strong> To receive task reminders, please:
+                      </p>
+                      <ol className="text-red-600 text-sm mt-2 ml-4 list-decimal">
+                        <li>Click the lock icon in your browser's address bar</li>
+                        <li>Set "Notifications" to "Allow"</li>
+                        <li>Refresh this page</li>
+                      </ol>
+                    </div>
+                  )}
+
+                  {permissionStatus === "granted" && (
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-green-700 text-sm">
+                        <strong>Notifications Active:</strong> You'll receive reminders for tasks with reminder times set. Click the button above to test notifications.
+                      </p>
+                    </div>
+                  )}
+
+                  {permissionStatus === "default" && (
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <p className="text-blue-700 text-sm">
+                        <strong>Enable Notifications:</strong> Click the button above to enable task reminder notifications. You'll be asked to allow notifications for this site.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setPage("manage-categories")}
                   className="w-full flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 mt-2 transition-colors"
