@@ -1371,7 +1371,7 @@
                 },
                 tag: `task-reminder-${task.id}`
               });
-              console.log(`✅ Service worker notification shown for task: ${task.content}`);
+              console.log(`Service worker notification shown for task: ${task.content}`);
             } else {
               // Fallback to regular notification
               const notification = new Notification(`Task Reminder: ${task.content}`, {
