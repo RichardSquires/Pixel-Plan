@@ -1336,6 +1336,32 @@
         // Make debug function available globally for testing
         window.debugNotifications = debugNotifications;
 
+        // Test notification function for debugging
+        const testNotification = async () => {
+          console.log('🧪 Testing notification...');
+          if (Notification.permission !== 'granted') {
+            console.error('Notification permission not granted');
+            return;
+          }
+
+          const testTask = {
+            id: 'test-' + Date.now(),
+            content: 'Test Notification Task',
+            dueDate: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          };
+
+          try {
+            await showTaskNotification(testTask);
+            console.log('✅ Test notification sent successfully');
+          } catch (error) {
+            console.error('❌ Test notification failed:', error);
+          }
+        };
+
+        // Make test function available globally
+        window.testNotification = testNotification;
+
         // Show notification for a task
         const showTaskNotification = async (task) => {
           if (Notification.permission !== 'granted') {
