@@ -1203,29 +1203,34 @@
           return () => clearInterval(backupInterval);
         }, []);
 
-        // Request notification permission on app load
+        // Monitor notification permission changes and update status
         useEffect(() => {
-          const requestNotificationPermission = async () => {
-            if ('Notification' in window && Notification.permission === 'default') {
-              try {
-                const permission = await Notification.requestPermission();
-                setNotificationPermission(permission);
-                if (permission === 'granted') {
-                  console.log('✅ Notification permission granted');
-                  triggerToast('📱 Notifications enabled for reminders!');
-                }
-              } catch (error) {
-                console.error('Failed to request notification permission:', error);
-              }
-            } else {
+          const checkNotificationPermission = () => {
+            if ('Notification' in window) {
               setNotificationPermission(Notification.permission);
             }
           };
 
-          // Only request permission after data is loaded and user is authenticated
-          if (dataLoaded && isAuthenticated) {
-            requestNotificationPermission();
-          }
+          // Check permission initially
+          checkNotificationPermission();
+
+          // Check permission periodically (in case user changes it in browser settings)
+          const interval = setInterval(checkNotificationPermission, 5000);
+
+          return () => clearInterval(interval);
+        }, []);
+
+        // Automatically request permission if default and user is authenticated
+        useEffect(() => {
+          const requestInitialNotificationPermission = async () => {
+            if ('Notification' in window && Notification.permission === 'default' && dataLoaded && isAuthenticated) {
+              console.log('🔔 Requesting notification permission for task reminders...');
+              // Don't auto-request, let user explicitly enable it
+              // This respects user choice and prevents permission fatigue
+            }
+          };
+
+          requestInitialNotificationPermission();
         }, [dataLoaded, isAuthenticated]);
 
         // Notification scheduling system
@@ -1281,7 +1286,7 @@
             // Try to use service worker notification first
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification(`📋 Task Reminder: ${task.content}`, {
+              await registration.showNotification(`���� Task Reminder: ${task.content}`, {
                 body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}\nTime: ${task.time || 'No specific time'}`,
                 icon: './icon-192x192.png',
                 badge: './icon-192x192.png',
@@ -4055,7 +4060,7 @@ const renderPage = () => {
                         Task Reminder Notifications
                       </span>
                       <span className="text-sm text-gray-500">
-                        {permissionStatus === "granted" && "✅ Enabled - Click to test"}
+                        {permissionStatus === "granted" && "��� Enabled - Click to test"}
                         {permissionStatus === "denied" && "❌ Blocked"}
                         {permissionStatus === "default" && "⚠️ Click to enable"}
                       </span>
