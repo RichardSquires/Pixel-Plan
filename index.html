@@ -1234,15 +1234,20 @@
         }, [dataLoaded, isAuthenticated]);
 
         // Notification scheduling system
-        const scheduleNotification = (task) => {
-          if (!task.reminderOn || !task.reminderDate || !task.reminderTime) {
-            console.log(`⚠️ Cannot schedule notification for task "${task.content}": missing required fields`, {
-              reminderOn: task.reminderOn,
-              reminderDate: task.reminderDate,
-              reminderTime: task.reminderTime
-            });
-            return;
-          }
+       const scheduleNotification = async (task) => {
+  if (!task.reminderOn || !task.reminderDate || !task.reminderTime) {
+    return;
+  }
+
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    const registration = await navigator.serviceWorker.ready;
+    // Send a message to the service worker to schedule the notification
+    registration.active.postMessage({
+      type: 'SCHEDULE_NOTIFICATION',
+      task: task,
+    });
+  }
+};
 
           try {
             const reminderDateTime = new Date(`${task.reminderDate}T${convertTimeToISO(task.reminderTime)}`);
