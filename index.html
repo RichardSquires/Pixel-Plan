@@ -1553,25 +1553,46 @@
           );
         };
 
-        const handlePostponeTask = (taskId) => {
-          setTasks(
-            tasks.map((task) => {
-              if (task.id === taskId) {
-                const today = new Date();
-                const tomorrow = new Date(today);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const formattedDate = tomorrow.toISOString().split("T")[0];
-                return { ...task, dueDate: formattedDate };
-              }
-              return task;
-            }),
-          );
-          triggerToast("Task postponed to tomorrow!");
+        const handlePostponeTask = async (taskId) => {
+          const newTasks = tasks.map((task) => {
+            if (task.id === taskId) {
+              const today = new Date();
+              const tomorrow = new Date(today);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const formattedDate = tomorrow.toISOString().split("T")[0];
+              return { ...task, dueDate: formattedDate };
+            }
+            return task;
+          });
+
+          setTasks(newTasks);
+
+          // Force immediate save when task is postponed
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Task postpone saved immediately");
+            triggerToast("Task postponed to tomorrow!");
+          } catch (error) {
+            console.error("Failed to save task postpone immediately:", error);
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task postponed (backup saved)!");
+          }
         };
 
-        const handleDeleteTask = (taskId) => {
-          setTasks(tasks.filter((task) => task.id !== taskId));
-          triggerToast("Task deleted.");
+        const handleDeleteTask = async (taskId) => {
+          const newTasks = tasks.filter((task) => task.id !== taskId);
+          setTasks(newTasks);
+
+          // Force immediate save when task is deleted
+          try {
+            await Storage.setTasks(newTasks);
+            console.log("✅ Task deletion saved immediately");
+            triggerToast("Task deleted.");
+          } catch (error) {
+            console.error("Failed to save task deletion immediately:", error);
+            localStorage.setItem('emergency-backup-tasks', JSON.stringify(newTasks));
+            triggerToast("Task deleted (backup saved).");
+          }
         };
 
         const startEditing = (task) => {
