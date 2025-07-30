@@ -1313,6 +1313,29 @@
           }
         };
 
+        // Debug function to test notification scheduling
+        const debugNotifications = () => {
+          console.log('🔍 Debug: Current notification state');
+          console.log('- Notification permission:', notificationPermission);
+          console.log('- Is authenticated:', isAuthenticated);
+          console.log('- Data loaded:', dataLoaded);
+          console.log('- Active notification timers:', notificationTimeouts.current.size);
+          console.log('- Tasks with reminders:', tasks.filter(t => t.reminderOn && !t.completed).length);
+
+          tasks.forEach(task => {
+            if (task.reminderOn && !task.completed) {
+              console.log(`📋 Task: "${task.content}"`, {
+                reminderDate: task.reminderDate,
+                reminderTime: task.reminderTime,
+                hasTimeout: notificationTimeouts.current.has(task.id)
+              });
+            }
+          });
+        };
+
+        // Make debug function available globally for testing
+        window.debugNotifications = debugNotifications;
+
         // Show notification for a task
         const showTaskNotification = async (task) => {
           if (Notification.permission !== 'granted') {
