@@ -1336,6 +1336,32 @@
         // Make debug function available globally for testing
         window.debugNotifications = debugNotifications;
 
+        // Test notification function for debugging
+        const testNotification = async () => {
+          console.log('🧪 Testing notification...');
+          if (Notification.permission !== 'granted') {
+            console.error('Notification permission not granted');
+            return;
+          }
+
+          const testTask = {
+            id: 'test-' + Date.now(),
+            content: 'Test Notification Task',
+            dueDate: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          };
+
+          try {
+            await showTaskNotification(testTask);
+            console.log('✅ Test notification sent successfully');
+          } catch (error) {
+            console.error('❌ Test notification failed:', error);
+          }
+        };
+
+        // Make test function available globally
+        window.testNotification = testNotification;
+
         // Show notification for a task
         const showTaskNotification = async (task) => {
           if (Notification.permission !== 'granted') {
@@ -1347,22 +1373,23 @@
             // Try to use service worker notification first
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification(`���� Task Reminder: ${task.content}`, {
-                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}\nTime: ${task.time || 'No specific time'}`,
+              if (registration && registration.showNotification) {
+                await registration.showNotification(`Task Reminder: ${task.content}`, {
+                body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}${task.time ? '\nTime: ' + task.time : ''}`,
                 icon: './icon-192x192.png',
                 badge: './icon-192x192.png',
                 vibrate: [200, 100, 200, 100, 200],
                 requireInteraction: true,
+                silent: false,
+                timestamp: Date.now(),
                 actions: [
                   {
                     action: 'complete',
-                    title: '✅ Mark Complete',
-                    icon: './icon-192x192.png'
+                    title: 'Mark Complete'
                   },
                   {
                     action: 'postpone',
-                    title: '⏰ Postpone',
-                    icon: './icon-192x192.png'
+                    title: 'Postpone'
                   }
                 ],
                 data: {
@@ -1371,10 +1398,13 @@
                 },
                 tag: `task-reminder-${task.id}`
               });
-              console.log(`✅ Service worker notification shown for task: ${task.content}`);
+              console.log(`Service worker notification shown for task: ${task.content}`);
+              } else {
+                throw new Error('Service worker registration not available');
+              }
             } else {
               // Fallback to regular notification
-              const notification = new Notification(`📋 Task Reminder: ${task.content}`, {
+              const notification = new Notification(`Task Reminder: ${task.content}`, {
                 body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}`,
                 icon: './icon-192x192.png',
                 requireInteraction: true
@@ -1385,7 +1415,7 @@
                 notification.close();
               };
 
-              console.log(`✅ Regular notification shown for task: ${task.content}`);
+              console.log(`Regular notification shown for task: ${task.content}`);
             }
           } catch (error) {
             console.error('Failed to show notification:', error);
