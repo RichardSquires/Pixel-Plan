@@ -1347,7 +1347,7 @@
             // Try to use service worker notification first
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification(`���� Task Reminder: ${task.content}`, {
+              await registration.showNotification(`Task Reminder: ${task.content}`, {
                 body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}\nTime: ${task.time || 'No specific time'}`,
                 icon: './icon-192x192.png',
                 badge: './icon-192x192.png',
