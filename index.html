@@ -1347,20 +1347,44 @@
         // Schedule all task reminders when tasks change
         useEffect(() => {
           if (dataLoaded && isAuthenticated && notificationPermission === 'granted') {
+            console.log(`🔄 Rescheduling all notifications (${tasks.length} total tasks)`);
+
             // Clear all existing timeouts
+            const clearedCount = notificationTimeouts.current.size;
             notificationTimeouts.current.forEach((timeoutId) => {
               clearTimeout(timeoutId);
             });
             notificationTimeouts.current.clear();
 
+            if (clearedCount > 0) {
+              console.log(`🧹 Cleared ${clearedCount} existing notification timers`);
+            }
+
             // Schedule notifications for all tasks with reminders
+            let scheduledCount = 0;
+            let skippedCount = 0;
+
             tasks.forEach(task => {
               if (!task.completed && task.reminderOn) {
+                const sizeBefore = notificationTimeouts.current.size;
                 scheduleNotification(task);
+                const sizeAfter = notificationTimeouts.current.size;
+
+                if (sizeAfter > sizeBefore) {
+                  scheduledCount++;
+                } else {
+                  skippedCount++;
+                }
               }
             });
 
-            console.log(`📅 Scheduled ${notificationTimeouts.current.size} notification reminders`);
+            console.log(`📅 Notification scheduling complete: ${scheduledCount} scheduled, ${skippedCount} skipped (total active: ${notificationTimeouts.current.size})`);
+          } else {
+            console.log('⏸️ Notification scheduling skipped:', {
+              dataLoaded,
+              isAuthenticated,
+              notificationPermission
+            });
           }
         }, [tasks, dataLoaded, isAuthenticated, notificationPermission]);
 
