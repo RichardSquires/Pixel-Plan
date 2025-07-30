@@ -1495,7 +1495,7 @@
             return nextDueDate.toISOString().split('T')[0];
         };
         
-        const toggleTaskCompletion = (taskId) => {
+        const toggleTaskCompletion = async (taskId) => {
             let completedTask = null;
             const newTasks = tasks.map(task => {
                 if (task.id === taskId) {
@@ -1505,6 +1505,8 @@
                 return task;
             });
 
+            let finalTasks = newTasks;
+
             if (completedTask && completedTask.completed && completedTask.recurrence && completedTask.recurrence.type !== 'no-schedule') {
                 const nextDueDate = calculateNextDueDate(completedTask.dueDate, completedTask.recurrence);
                 if (nextDueDate) {
@@ -1513,15 +1515,24 @@
                         id: generateId(),
                         completed: false,
                         dueDate: nextDueDate,
-                        reminderDate: nextDueDate, // This line is the fix!
+                        reminderDate: nextDueDate,
                         subtasks: completedTask.subtasks.map(st => ({ ...st, id: generateId(), completed: false })),
                     };
-                    setTasks([newTask, ...newTasks]);
-                } else {
-                    setTasks(newTasks);
+                    finalTasks = [newTask, ...newTasks];
                 }
-            } else {
-                setTasks(newTasks);
+            }
+
+            setTasks(finalTasks);
+
+            // Force immediate save when task completion changes
+            try {
+                await Storage.setTasks(finalTasks);
+                console.log("✅ Task completion change saved immediately");
+            } catch (error) {
+                console.error("Failed to save task completion change immediately:", error);
+                // Emergency backup
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(finalTasks));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
             }
         };
 
