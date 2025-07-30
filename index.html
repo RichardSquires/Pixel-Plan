@@ -1346,6 +1346,33 @@
           }
         }, [tasks, dataLoaded, isAuthenticated, notificationPermission]);
 
+        // Handle service worker messages from notification actions
+        useEffect(() => {
+          const handleMessage = (event) => {
+            const { data } = event;
+
+            if (data.type === 'COMPLETE_TASK') {
+              console.log('📱 Completing task from notification:', data.taskId);
+              toggleTaskCompletion(data.taskId);
+              triggerToast('✅ Task completed from notification!');
+            } else if (data.type === 'POSTPONE_TASK') {
+              console.log('📱 Postponing task from notification:', data.taskId);
+              handlePostponeTask(data.taskId);
+              triggerToast('⏰ Task postponed from notification!');
+            }
+          };
+
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleMessage);
+          }
+
+          return () => {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.removeEventListener('message', handleMessage);
+            }
+          };
+        }, [tasks]);
+
         // Cleanup notifications on unmount
         useEffect(() => {
           return () => {
