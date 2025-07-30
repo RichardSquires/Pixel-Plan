@@ -1229,6 +1229,10 @@
         // Track pending saves to ensure they complete before app closes
         const pendingSaves = useRef(new Set());
 
+        // Notification scheduling system
+        const notificationTimeouts = useRef(new Map());
+        const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+
         // Force save all data immediately and wait for completion
         const forceImmediateSave = async () => {
           console.log("Force saving all data immediately...");
