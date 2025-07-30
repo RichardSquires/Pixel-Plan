@@ -20,6 +20,45 @@ const EXTERNAL_RESOURCES = [
   "https://fonts.googleapis.com/css2?family=Pangolin&display=swap",
 ];
 
+// --- Helper Functions for Notifications ---
+const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const parts = dateString.split("-");
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    const options = { weekday: 'short', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+};
+
+const convertTimeToISO = (timeString) => {
+    if (!timeString || typeof timeString !== 'string') return '12:00';
+    try {
+        const trimmed = timeString.trim();
+        if (!trimmed) return '12:00';
+        // Handle 24-hour format (e.g., "14:30")
+        if (!trimmed.includes(' ')) {
+            const [hours, minutes] = trimmed.split(':');
+            const h = parseInt(hours) || 0;
+            const m = parseInt(minutes) || 0;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+        // Handle 12-hour format (e.g., "2:30 PM")
+        const [time, period] = trimmed.split(' ');
+        let [hours, minutes] = time.split(':');
+        hours = parseInt(hours) || 0;
+        minutes = parseInt(minutes) || 0;
+        if (period && period.toUpperCase() === 'PM' && hours !== 12) {
+            hours += 12;
+        } else if (period && period.toUpperCase() === 'AM' && hours === 12) {
+            hours = 0;
+        }
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    } catch (error) {
+        console.error('convertTimeToISO: Error converting time string:', timeString, error);
+        return '12:00';
+    }
+};
+
+
 // Install event - cache core files
 self.addEventListener("install", (event) => {
   console.log("Service Worker: Installing...");
@@ -141,7 +180,7 @@ function doBackgroundSync() {
   return Promise.resolve();
 }
 
-// Handle push notifications
+// Handle push notifications from a server (if you implement them later)
 self.addEventListener("push", (event) => {
   console.log("Service Worker: Push message received");
 
@@ -171,6 +210,45 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification("Pixel Plan", options));
 });
 
+
+// *** NEW *** Handle scheduled notifications from the app
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SCHEDULE_NOTIFICATION') {
+    const task = event.data.task;
+    console.log('Service Worker: Received task to schedule notification', task);
+
+    const reminderDateTime = new Date(`${task.reminderDate}T${convertTimeToISO(task.reminderTime)}`);
+    const now = new Date();
+    const timeDiff = reminderDateTime.getTime() - now.getTime();
+
+    if (timeDiff > 0) {
+      console.log(`Service Worker: Scheduling notification for "${task.content}" in ${timeDiff}ms`);
+      setTimeout(() => {
+        console.log(`Service Worker: Triggering notification for "${task.content}"`);
+        self.registration.showNotification(`Task Reminder: ${task.content}`, {
+          body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}${task.time ? '\nTime: ' + task.time : ''}`,
+          icon: './icon-192x192.png',
+          badge: './icon-192x192.png',
+          vibrate: [200, 100, 200, 100, 200],
+          requireInteraction: true,
+          actions: [
+            { action: 'complete', title: 'Mark Complete' },
+            { action: 'postpone', title: 'Postpone' },
+          ],
+          data: {
+            taskId: task.id,
+            action: 'reminder'
+          },
+          tag: `task-reminder-${task.id}`
+        });
+      }, timeDiff);
+    } else {
+        console.log(`Service Worker: Notification for "${task.content}" is in the past. Not scheduling.`);
+    }
+  }
+});
+
+
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
   console.log("Service Worker: Notification click received", event.action);
@@ -180,7 +258,7 @@ self.addEventListener("notificationclick", (event) => {
   if (event.action === "explore") {
     event.waitUntil(clients.openWindow("./"));
   } else if (event.action === "complete") {
-    // Handle task completion
+    // Handle task completion by sending a message back to the app
     event.waitUntil(
       clients.matchAll().then((clientList) => {
         if (clientList.length > 0) {
@@ -195,7 +273,7 @@ self.addEventListener("notificationclick", (event) => {
       })
     );
   } else if (event.action === "postpone") {
-    // Handle task postponement
+    // Handle task postponement by sending a message back to the app
     event.waitUntil(
       clients.matchAll().then((clientList) => {
         if (clientList.length > 0) {
