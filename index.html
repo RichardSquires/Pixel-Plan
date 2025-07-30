@@ -1270,7 +1270,7 @@
               console.log(`⏰ Reminder time for task "${task.content}" is in the past, not scheduling`);
             }
           } catch (error) {
-            console.error(`�� Failed to schedule notification for task "${task.content}":`, error);
+            console.error(`❌ Failed to schedule notification for task "${task.content}":`, error);
           }
         };
 
@@ -1373,6 +1373,9 @@
                 tag: `task-reminder-${task.id}`
               });
               console.log(`Service worker notification shown for task: ${task.content}`);
+              } else {
+                throw new Error('Service worker registration not available');
+              }
             } else {
               // Fallback to regular notification
               const notification = new Notification(`Task Reminder: ${task.content}`, {
@@ -1728,7 +1731,7 @@
 
           // Immediately schedule notification for the updated task if it has a reminder
           if (updatedTask.reminderOn && notificationPermission === 'granted' && isAuthenticated) {
-            console.log(`�� Immediately scheduling notification for updated task: ${updatedTask.content}`);
+            console.log(`🔄 Immediately scheduling notification for updated task: ${updatedTask.content}`);
             scheduleNotification(updatedTask);
           }
 
