@@ -1374,7 +1374,7 @@
               console.log(`✅ Service worker notification shown for task: ${task.content}`);
             } else {
               // Fallback to regular notification
-              const notification = new Notification(`📋 Task Reminder: ${task.content}`, {
+              const notification = new Notification(`Task Reminder: ${task.content}`, {
                 body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}`,
                 icon: './icon-192x192.png',
                 requireInteraction: true
