@@ -1208,58 +1208,193 @@
           setPage("tasks");
         };
 
-        // Auto-save data to IndexedDB when state changes
+        // Track pending saves to ensure they complete before app closes
+        const pendingSaves = useRef(new Set());
+
+        // Force save all data immediately and wait for completion
+        const forceImmediateSave = async () => {
+          console.log("Force saving all data immediately...");
+          try {
+            await Promise.all([
+              Storage.setTasks(tasks),
+              Storage.setCategories(categories),
+              Storage.setCustomIcons(customIcons),
+              Storage.setAttributions(attributions)
+            ]);
+            console.log("✅ All data force saved successfully");
+            return true;
+          } catch (error) {
+            console.error("❌ Force save failed:", error);
+            return false;
+          }
+        };
+
+        // Auto-save data to IndexedDB when state changes with improved error handling
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `tasks-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving tasks to IndexedDB:", tasks);
+
             Storage.setTasks(tasks)
               .then((result) => {
                 console.log("Tasks saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save tasks:", error);
+                pendingSaves.current.delete(saveId);
+                // Fallback to localStorage on IndexedDB failure
+                try {
+                  localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                  console.log("Tasks emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [tasks, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `categories-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving categories to IndexedDB:", categories);
+
             Storage.setCategories(categories)
               .then((result) => {
                 console.log("Categories saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save categories:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                  console.log("Categories emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [categories, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `customIcons-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving custom icons to IndexedDB:", customIcons);
+
             Storage.setCustomIcons(customIcons)
               .then((result) => {
                 console.log("Custom icons saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save custom icons:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-customIcons', JSON.stringify(customIcons));
+                  console.log("Custom icons emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [customIcons, dataLoaded]);
 
         useEffect(() => {
           if (dataLoaded) {
+            const saveId = `attributions-${Date.now()}`;
+            pendingSaves.current.add(saveId);
             console.log("Saving attributions to IndexedDB:", attributions);
+
             Storage.setAttributions(attributions)
               .then((result) => {
                 console.log("Attributions saved:", result);
+                pendingSaves.current.delete(saveId);
               })
               .catch((error) => {
                 console.error("Failed to save attributions:", error);
+                pendingSaves.current.delete(saveId);
+                try {
+                  localStorage.setItem('emergency-backup-attributions', JSON.stringify(attributions));
+                  console.log("Attributions emergency backup saved to localStorage");
+                } catch (lsError) {
+                  console.error("Emergency backup also failed:", lsError);
+                }
               });
           }
         }, [attributions, dataLoaded]);
+
+        // Add beforeunload handler to save data when app is closing
+        useEffect(() => {
+          const handleBeforeUnload = async (event) => {
+            console.log("App is closing, attempting to save data...");
+
+            // Check if there are pending saves
+            if (pendingSaves.current.size > 0) {
+              console.log(`Warning: ${pendingSaves.current.size} saves still pending`);
+            }
+
+            // Force immediate save with limited time
+            try {
+              // Use a Promise.race to timeout after 2 seconds
+              const savePromise = forceImmediateSave();
+              const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 2000));
+
+              const result = await Promise.race([savePromise, timeoutPromise]);
+
+              if (result) {
+                console.log("✅ Data saved successfully before app close");
+              } else {
+                console.log("⚠️ Save timed out, using emergency backup");
+                // Emergency backup to localStorage
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                localStorage.setItem('emergency-backup-customIcons', JSON.stringify(customIcons));
+                localStorage.setItem('emergency-backup-attributions', JSON.stringify(attributions));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
+              }
+            } catch (error) {
+              console.error("Error during beforeunload save:", error);
+              // Final emergency backup
+              try {
+                localStorage.setItem('emergency-backup-tasks', JSON.stringify(tasks));
+                localStorage.setItem('emergency-backup-categories', JSON.stringify(categories));
+                localStorage.setItem('emergency-backup-timestamp', Date.now().toString());
+              } catch (emergencyError) {
+                console.error("Emergency backup failed:", emergencyError);
+              }
+            }
+          };
+
+          const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+              console.log("Page hidden, saving data...");
+              forceImmediateSave().catch(error =>
+                console.error("Save on visibility change failed:", error)
+              );
+            }
+          };
+
+          window.addEventListener('beforeunload', handleBeforeUnload);
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+
+          // Also save on page focus loss (additional safety net)
+          window.addEventListener('blur', () => {
+            console.log("Window lost focus, saving data...");
+            forceImmediateSave().catch(error =>
+              console.error("Save on blur failed:", error)
+            );
+          });
+
+          return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', forceImmediateSave);
+          };
+        }, [tasks, categories, customIcons, attributions, dataLoaded]);
 
         const triggerToast = (message) => {
           setToastMessage(message);
