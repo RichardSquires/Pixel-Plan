@@ -3877,26 +3877,61 @@ const renderPage = () => {
 
         const requestNotificationPermission = async () => {
           if (!("Notification" in window)) {
-            alert("This browser does not support desktop notification");
+            alert("This browser does not support desktop notifications");
             return;
           }
 
           if (Notification.permission === "granted") {
-            alert("Notifications are already enabled!");
+            // Test notification to show it's working
+            try {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification("Pixel Plan - Test Notification", {
+                body: "Notifications are working! You'll receive reminders for your tasks.",
+                icon: "icon-192x192.png",
+                badge: "icon-192x192.png",
+                vibrate: [200, 100, 200],
+                requireInteraction: false,
+                tag: 'test-notification'
+              });
+            } catch (error) {
+              console.error("Failed to show test notification:", error);
+              alert("Notifications are enabled, but there was an error showing the test notification.");
+            }
             return;
           }
 
-          const permission = await Notification.requestPermission();
-          setPermissionStatus(permission);
+          if (Notification.permission === "denied") {
+            alert("Notifications are blocked. Please enable them in your browser settings to receive task reminders.");
+            return;
+          }
 
-          if (permission === "granted") {
-            navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification("Pixel Plan", {
-                body: "Notifications have been enabled!",
+          try {
+            const permission = await Notification.requestPermission();
+            setPermissionStatus(permission);
+
+            if (permission === "granted") {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification("Pixel Plan - Notifications Enabled!", {
+                body: "Great! You'll now receive reminders for your tasks. Create a task with a reminder to test it out.",
                 icon: "icon-192x192.png",
+                badge: "icon-192x192.png",
                 vibrate: [200, 100, 200],
+                requireInteraction: true,
+                actions: [
+                  {
+                    action: 'explore',
+                    title: '📋 Create Task',
+                    icon: 'icon-192x192.png'
+                  }
+                ],
+                tag: 'welcome-notification'
               });
-            });
+            } else if (permission === "denied") {
+              alert("Notifications were denied. You can enable them later in your browser settings.");
+            }
+          } catch (error) {
+            console.error("Error requesting notification permission:", error);
+            alert("There was an error requesting notification permission. Please try again.");
           }
         };
 
