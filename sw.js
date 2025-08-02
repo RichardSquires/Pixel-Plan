@@ -222,9 +222,9 @@ self.addEventListener('message', (event) => {
     const timeDiff = reminderDateTime.getTime() - now.getTime();
 
     if (timeDiff > 0) {
-      console.log(`Service Worker: Scheduling notification for "${task.content}" in ${timeDiff}ms`);
+      console.log(`Service Worker - Notification scheduling: Scheduling notification for "${task.content}" in ${timeDiff}ms`);
       setTimeout(() => {
-        console.log(`Service Worker: Triggering notification for "${task.content}"`);
+        console.log(`Service Worker - Notification scheduling: Triggering notification for "${task.content}"`);
         self.registration.showNotification(`Task Reminder: ${task.content}`, {
           body: `Due: ${task.dueDate ? formatDate(task.dueDate) : 'No due date'}${task.time ? '\nTime: ' + task.time : ''}`,
           icon: './icon-192x192.png',
@@ -243,7 +243,7 @@ self.addEventListener('message', (event) => {
         });
       }, timeDiff);
     } else {
-        console.log(`Service Worker: Notification for "${task.content}" is in the past. Not scheduling.`);
+        console.log(`Service Worker - Notification scheduling: Notification for "${task.content}" is in the past. Not scheduling.`);
     }
   }
 });
