@@ -3272,9 +3272,8 @@ const renderPage = () => {
           (t) => t.recurrence && !t.completed,
         );
 
-        const getCategoryName = (categoryId) => {
-          const category = categories.find((c) => c.id === categoryId);
-          return category ? category.name : "Uncategorized";
+        let GetCategoryFromId = (categoryId) => {
+          return categories.find((c) => c.id === categoryId);
         };
 
         const getRecurrenceText = (recurrence) => {
@@ -3316,6 +3315,8 @@ const renderPage = () => {
                 {recurringTasks.length > 0 ? (
                   recurringTasks.map((task) => {
                     const icon = customIcons.find((i) => i.id === task.iconId);
+                    let category = GetCategoryFromId(task.categoryId);
+                    let categoryIcon = customIcons.find((i) => i.id === category.iconId);
                     return (
                       <div
                         key={task.id}
@@ -3335,8 +3336,17 @@ const renderPage = () => {
                           </div>
                           <div className="flex-grow">
                             <p className="text-lg">{task.content}</p>
-                            <p className="text-sm text-gray-500">
-                              {getCategoryName(task.categoryId)}
+                            <p className="text-sm text-gray-500 flex">
+                              {categoryIcon ? (
+                                <img
+                                  src={categoryIcon.src}
+                                  alt="task icon"
+                                  className="h-4 w-4"
+                                />
+                                ) : (
+                                  <span></span>
+                                  )}
+                              {category["name"]}
                             </p>
                             <p className="text-xs text-purple-500 mt-1">
                               {getRecurrenceText(task.recurrence)}
