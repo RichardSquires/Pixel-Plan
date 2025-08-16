@@ -2319,11 +2319,6 @@ const renderPage = () => {
 
         const completedTasks = tasks.filter((t) => t.completed);
 
-        const getCategoryName = (categoryId) => {
-          const category = categories.find((c) => c.id === categoryId);
-          return category ? category.name : "Uncategorized";
-        };
-
         return (
           <div>
             <h2 className="text-2xl font-semibold mb-4 text-gray-700">
@@ -2347,7 +2342,7 @@ const renderPage = () => {
                         <TaskItem
                           key={task.id}
                           task={task}
-                          categoryName={getCategoryName(task.categoryId)}
+                          categories={categories}
                           customIcons={customIcons}
                           onToggle={onToggle}
                           onToggleSubtask={onToggleSubtask}
@@ -2386,7 +2381,7 @@ const renderPage = () => {
                       <TaskItem
                         key={task.id}
                         task={task}
-                        categoryName={getCategoryName(task.categoryId)}
+                        categories={categories}
                         customIcons={customIcons}
                         onToggle={onToggle}
                         onToggleSubtask={onToggleSubtask}
@@ -2407,7 +2402,7 @@ const renderPage = () => {
       
       const TaskItem = ({
         task,
-        categoryName,
+        categories,
         customIcons,
         onToggle,
         onToggleSubtask,
@@ -2420,6 +2415,15 @@ const renderPage = () => {
         const startX = useRef(0);
         const currentX = useRef(0);
         const [translateX, setTranslateX] = useState(0);
+        
+        let GetCategoryFromId = (categoryId) => {
+          return categories.find((c) => c.id === categoryId);
+        };
+        
+        let category = GetCategoryFromId(task.categoryId);
+        let categoryIconId = category !== undefined || category["iconId"] > 0 ? category["iconId"] : -1;
+        let categoryIcon = customIcons.find((i) => i.id === categoryIconId);
+
 
         const handleSwipeStart = (e) => {
           if (task.completed) return;
@@ -2536,8 +2540,17 @@ const renderPage = () => {
                       {task.content}
                     </p>
                     <div className="text-sm text-gray-500 flex items-center space-x-2 mt-1">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                        {categoryName}
+                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium flex">
+                        {categoryIcon ? (
+                          <img
+                            src={categoryIcon.src}
+                            alt="task icon"
+                            className="h-4 w-4"
+                          />
+                          ) : (
+                            <span></span>
+                            )}
+                        {category["name"]}
                       </span>
                       {task.dueDate && <span>{formatDate(task.dueDate)}</span>}
                       {task.time && <span className="ml-2">{task.time}</span>}
