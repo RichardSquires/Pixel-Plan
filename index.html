@@ -127,9 +127,10 @@
         SETTINGS: "settings",
       };
 
-      // Initialize IndexedDB
-      const initDB = () => {
-        return new Promise((resolve, reject) => {
+      //for concurency we need this to be outside of the function to prevent multiple simultaneous instanciations
+      // , after all once the database is ready we only need to access it!
+      const DB_PROMISE = new Promise((resolve, reject) => {
+          console.log("Starting IndexedDB warm up");
           const request = indexedDB.open(DB_NAME, DB_VERSION);
 
           request.onerror = () => reject(request.error);
@@ -146,6 +147,11 @@
             });
           };
         });
+
+      // Initialize IndexedDB
+      let initDB = () => {
+        console.log("Get IndexedDb Promise");
+        return DB_PROMISE;
       };
 
       // Generic function to save data to IndexedDB
